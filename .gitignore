@@ -1,0 +1,50 @@
+# Excluir carpeta de imágenes fuente
+bmp/
+
+# Archivos generados en ejecución
+cipher_*.ppm
+recovered_*.ppm
+*.log
+*.tmp
+*.temp
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Java
+*.class
+
+# C / binarios
+*.o
+*.out
+*.so
+moore_ca_c
+
+# .NET
+bin/
+obj/
+cs_project/bin/
+cs_project/obj/
+
+# Entornos y caches
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Archivos de Codex
+.codex
+.codex/
+*.codex
+
+# Editor / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

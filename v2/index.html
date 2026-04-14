@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Moore CA — Comparador de Lenguajes</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0a0f;--surface:#111118;--border:#1e1e2e;--accent1:#00ffc8;--accent2:#ff6b35;--accent3:#a78bfa;--text:#e2e8f0;--muted:#64748b;--grid:rgba(255,255,255,0.03);}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+  #app{position:relative;z-index:1;}
+  header{padding:3rem 2rem 2rem;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:.5rem;background:linear-gradient(180deg,rgba(0,255,200,.04) 0%,transparent 100%);}
+  .header-label{font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent1);font-weight:700;}
+  h1{font-family:'Syne',sans-serif;font-size:clamp(1.8rem,4vw,3.2rem);font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent1) 0%,var(--accent2) 50%,var(--accent3) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .subtitle{font-size:.8rem;color:var(--muted);margin-top:.3rem;font-style:italic;}
+  .lang-strip{display:flex;gap:1rem;padding:1.5rem 2rem;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .lang-badge{display:flex;align-items:center;gap:.5rem;padding:.4rem .9rem;border-radius:4px;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid;}
+  .badge-java{border-color:var(--accent1);color:var(--accent1);background:rgba(0,255,200,.07)}
+  .badge-c{border-color:var(--accent2);color:var(--accent2);background:rgba(255,107,53,.07)}
+  .badge-cs{border-color:var(--accent3);color:var(--accent3);background:rgba(167,139,250,.07)}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  main{padding:2rem;display:grid;gap:2rem;}
+  .upload-zone{border:2px dashed var(--border);border-radius:8px;padding:2.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem;cursor:pointer;transition:all .2s;background:var(--surface);}
+  .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent1);background:rgba(0,255,200,.04);box-shadow:0 0 30px rgba(0,255,200,.08);}
+  .upload-zone input[type=file]{display:none}
+  .upload-text{font-size:.85rem;color:var(--muted)}
+  .upload-text span{color:var(--accent1);text-decoration:underline;cursor:pointer}
+  #preview-row{display:none;gap:1rem;flex-wrap:wrap;padding:1rem;background:var(--surface);border-radius:8px;border:1px solid var(--border);}
+  .preview-item{display:flex;flex-direction:column;gap:.4rem;align-items:center}
+  .preview-item img,.preview-item canvas{width:120px;height:120px;object-fit:contain;border-radius:4px;border:1px solid var(--border);image-rendering:pixelated;}
+  .preview-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+  .run-btn{background:linear-gradient(135deg,var(--accent1),rgba(0,200,150,.8));color:#000;font-family:'Space Mono',monospace;font-weight:700;font-size:.9rem;letter-spacing:.05em;text-transform:uppercase;border:none;border-radius:6px;padding:.9rem 2.5rem;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(0,255,200,.2);display:none;}
+  .run-btn:hover{box-shadow:0 0 35px rgba(0,255,200,.4);transform:translateY(-1px);}
+  .run-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+  #progress{display:none;flex-direction:column;gap:.8rem;padding:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+  .progress-line{display:flex;align-items:center;gap:.7rem;font-size:.8rem}
+  .spinner{width:14px;height:14px;border:2px solid transparent;border-top-color:var(--accent1);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .check{color:var(--accent1);font-size:1rem}
+  #results{display:none}
+  .section-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;padding-bottom:.5rem;border-bottom:1px solid var(--border);margin-bottom:1.2rem;display:flex;align-items:center;gap:.6rem;}
+  .section-title::before{content:'//';color:var(--muted);font-size:.9rem}
+  /* Image grid per language */
+  .lang-images{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem;display:flex;flex-direction:column;gap:.8rem;}
+  .lang-images-header{display:flex;align-items:center;gap:.6rem;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;}
+  .lang-images-row{display:flex;gap:.8rem;flex-wrap:wrap;}
+  .img-card{display:flex;flex-direction:column;gap:.4rem;align-items:center;}
+  .img-card img{width:100px;height:100px;object-fit:contain;border-radius:4px;border:1px solid var(--border);image-rendering:pixelated;background:#000;}
+  .img-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+  .recovery-ok{color:var(--accent1);font-size:.65rem;font-weight:700;}
+  .recovery-fail{color:#f87171;font-size:.65rem;font-weight:700;}
+  .images-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;}
+  .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;}
+  .metric-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem;display:flex;flex-direction:column;gap:.6rem;transition:border-color .2s;}
+  .metric-card:hover{border-color:var(--muted)}
+  .metric-card-header{display:flex;justify-content:space-between;align-items:center;}
+  .metric-lang{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+  .lang-java{color:var(--accent1)} .lang-c{color:var(--accent2)} .lang-cs{color:var(--accent3)}
+  .metric-time{font-size:.65rem;color:var(--muted);background:rgba(255,255,255,.04);padding:.15rem .4rem;border-radius:3px;}
+  .metric-row{display:flex;justify-content:space-between;align-items:baseline}
+  .metric-name{font-size:.7rem;color:var(--muted)}
+  .metric-value{font-size:1rem;font-weight:700}
+  .metric-bar-track{height:3px;background:var(--border);border-radius:2px;margin-top:.3rem;overflow:hidden;}
+  .metric-bar-fill{height:100%;border-radius:2px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+  .chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.5rem;}
+  .chart-title{font-size:.75rem;color:var(--muted);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.1em}
+  canvas.chart{width:100%!important;height:220px!important}
+  .perf-row{display:flex;gap:.8rem;flex-wrap:wrap;}
+  .perf-bar-wrap{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;display:flex;flex-direction:column;gap:.5rem;}
+  .perf-lang-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+  .perf-time-label{font-size:1.4rem;font-weight:700;font-family:'Syne',sans-serif}
+  .perf-bar-track{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+  .perf-bar-fill{height:100%;border-radius:3px;transition:width 1s cubic-bezier(.4,0,.2,1)}
+  .perf-rel{font-size:.65rem;color:var(--muted)}
+  .log-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;font-size:.72rem;color:var(--muted);max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:'Space Mono',monospace;}
+  .log-box .log-java{color:var(--accent1)} .log-box .log-c{color:var(--accent2)} .log-box .log-cs{color:var(--accent3)}
+  .fade-in{animation:fadeIn .4s ease forwards}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .stagger>*{opacity:0;animation:fadeIn .4s ease forwards}
+  .stagger>*:nth-child(1){animation-delay:.05s}.stagger>*:nth-child(2){animation-delay:.12s}.stagger>*:nth-child(3){animation-delay:.19s}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div class="header-label">Autómata Celular · Vecindad de Moore</div>
+  <h1>Comparador de Implementaciones</h1>
+  <p class="subtitle">Cifrado + Descifrado de imagen con AC-Moore — Java · C · C# · misma llave</p>
+</header>
+<div class="lang-strip">
+  <div class="lang-badge badge-java"><span class="dot"></span>Java</div>
+  <div class="lang-badge badge-c"><span class="dot"></span>C (nativo)</div>
+  <div class="lang-badge badge-cs"><span class="dot"></span>C# (.NET)</div>
+</div>
+
+<main>
+  <!-- Upload -->
+  <div class="upload-zone" id="drop-zone">
+    <input type="file" id="file-input" accept="image/*">
+    <div style="font-size:2.5rem;opacity:.4">🖼️</div>
+    <div class="upload-text">
+      Arrastra una imagen aquí o <span id="pick-btn">haz clic para seleccionar</span>
+    </div>
+    <div class="upload-text" style="font-size:.7rem">PNG · JPG · BMP — se redimensiona a 64×64 para la demo</div>
+  </div>
+
+  <!-- Preview -->
+  <div id="preview-row">
+    <div class="preview-item">
+      <canvas id="preview-canvas"></canvas>
+      <div class="preview-label">Original seleccionada</div>
+    </div>
+  </div>
+
+  <button class="run-btn" id="run-btn" onclick="runComparison()">
+    ▶ Ejecutar comparación
+  </button>
+
+  <!-- Progress -->
+  <div id="progress">
+    <div class="progress-line" id="row-java"><div class="spinner" id="sp-java"></div><span id="msg-java">Ejecutando Java…</span></div>
+    <div class="progress-line" id="row-c" style="opacity:.4"><div class="spinner" id="sp-c"></div><span id="msg-c">Esperando C…</span></div>
+    <div class="progress-line" id="row-cs" style="opacity:.4"><div class="spinner" id="sp-cs"></div><span id="msg-cs">Esperando C#…</span></div>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="section-title">Original · Cifrada · Descifrada — por lenguaje</div>
+    <div class="images-grid stagger" id="images-grid"></div>
+
+    <div class="section-title" style="margin-top:2rem">Rendimiento</div>
+    <div class="perf-row stagger" id="perf-row"></div>
+
+    <div class="section-title" style="margin-top:2rem">Métricas criptográficas (gen final)</div>
+    <div class="metrics-grid stagger" id="metrics-cards"></div>
+
+    <div class="section-title" style="margin-top:2rem">Entropía comparada — 3 lenguajes</div>
+    <div class="chart-wrap">
+      <div class="chart-title">bits/símbolo por generación</div>
+      <canvas class="chart" id="compare-chart"></canvas>
+    </div>
+
+    <div class="section-title" style="margin-top:2rem">Chi-cuadrado (<span id="chi-source">—</span>)</div>
+    <div class="chart-wrap">
+      <div class="chart-title">χ² — menor = distribución más uniforme</div>
+      <canvas class="chart" id="chi-chart"></canvas>
+    </div>
+
+    <div class="section-title" style="margin-top:2rem">Tabla de comparación</div>
+    <div id="comparison-table"></div>
+
+    <div class="section-title" style="margin-top:2rem">Log</div>
+    <div class="log-box" id="log-box"></div>
+  </div>
+</main>
+<footer style="text-align:center;padding:2rem;font-size:.7rem;color:var(--muted);border-top:1px solid var(--border);margin-top:2rem">
+  Moore CA · Autómata Celular · Java / C / C#
+</footer>
+</div>
+
+<script>
+'use strict';
+// ── State ──────────────────────────────────────────────────────────────
+let uploadedFile = null;
+
+// ── Upload — fix doble-subida: NO abrir picker al click en drop-zone,
+//   solo al click en el texto "<span id=pick-btn>" ───────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const pickBtn   = document.getElementById('pick-btn');
+
+// Solo el botón abre el picker
+pickBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+
+// El drop-zone solo reacciona a drag & drop, no a click
+dropZone.addEventListener('click', e => {
+  // Si el click viene del propio span ya fue manejado arriba; ignorar el resto
+});
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  uploadedFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.getElementById('preview-canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('preview-row').style.display = 'flex';
+  document.getElementById('run-btn').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+}
+
+// ── Run ───────────────────────────────────────────────────────────────
+async function runComparison() {
+  if (!uploadedFile) return;
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+
+  const prog = document.getElementById('progress');
+  prog.style.display = 'flex';
+  document.getElementById('results').style.display = 'none';
+
+  // Reset progress rows
+  ['java','c','cs'].forEach(l => {
+    const sp  = document.getElementById('sp-'+l);
+    const row = document.getElementById('row-'+l);
+    const msg = document.getElementById('msg-'+l);
+    if (sp)  { sp.style.display=''; }
+    if (row) { row.style.opacity = l==='java' ? '1' : '0.4'; row.querySelectorAll('.check').forEach(x=>x.remove()); }
+    if (msg) msg.textContent = l==='java' ? 'Ejecutando Java…' : l==='c' ? 'Esperando C…' : 'Esperando C#…';
+  });
+
+  const fd = new FormData();
+  fd.append('image', uploadedFile);
+
+  let data;
+  try {
+    const resp = await fetch('http://localhost:5000/api/run', { method:'POST', body:fd });
+    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    data = await resp.json();
+  } catch(err) {
+    console.warn('Backend no disponible — modo demo', err);
+    data = simulateData();
+  }
+
+  const results = data.results || [];
+  const jR = results.find(r=>r.lang==='Java') || {};
+  const cR = results.find(r=>r.lang==='C')    || {};
+  const csR= results.find(r=>r.lang==='C#')   || {};
+
+  setProgress('java','done', jR.error  ? 'Java ⚠ error'          : 'Java listo ✓');
+  setProgress('c',   'done', cR.error  ? 'C ⚠ no compilado'      : 'C listo ✓');
+  setProgress('cs',  'done', csR.error ? 'C# ⚠ no compilado'     : 'C# listo ✓');
+
+  await delay(350);
+  prog.style.display = 'none';
+  renderResults(data);
+  btn.disabled = false;
+}
+
+function setProgress(lang, state, msg) {
+  const sp  = document.getElementById('sp-'+lang);
+  const row = document.getElementById('row-'+lang);
+  const msgEl = document.getElementById('msg-'+lang);
+  if (row) row.style.opacity = '1';
+  if (msgEl) msgEl.textContent = msg;
+  if (state==='done' && sp) {
+    sp.style.display = 'none';
+    if (row && !row.querySelector('.check'))
+      msgEl.insertAdjacentHTML('beforebegin','<span class="check">✓</span> ');
+  }
+}
+
+// ── Lang meta ─────────────────────────────────────────────────────────
+const LM = {
+  'Java': {color:'var(--accent1)', cls:'lang-java', icon:'☕'},
+  'C':    {color:'var(--accent2)', cls:'lang-c',    icon:'⚙'},
+  'C#':   {color:'var(--accent3)', cls:'lang-cs',   icon:'🔷'},
+};
+
+// ── Render ────────────────────────────────────────────────────────────
+function renderResults(data) {
+  const res = document.getElementById('results');
+  res.style.display = 'block';
+  res.classList.add('fade-in');
+
+  const results = data.results || [];
+  const jR  = results.find(r=>r.lang==='Java') || {};
+  const cR  = results.find(r=>r.lang==='C')    || {};
+  const csR = results.find(r=>r.lang==='C#')   || {};
+
+  // ── Images grid ──────────────────────────────────────────────────
+  const ig = document.getElementById('images-grid');
+  ig.innerHTML = '';
+  [jR, cR, csR].forEach(r => {
+    const m = LM[r.lang] || {};
+    const recLabel = r.recovery === 'OK'
+      ? '<span class="recovery-ok">✓ Recuperación exacta</span>'
+      : r.recovery === 'FAIL'
+      ? '<span class="recovery-fail">✗ Recuperación fallida</span>'
+      : '';
+
+    ig.innerHTML += `
+      <div class="lang-images">
+        <div class="lang-images-header" style="color:${m.color}">${m.icon||''} ${r.lang||'?'} ${recLabel}</div>
+        ${r.error
+          ? `<div style="font-size:.72rem;color:#f87171">${r.error.substring(0,120)}</div>`
+          : `<div class="lang-images-row">
+              <div class="img-card">
+                <img src="data:image/png;base64,${data.original_img||''}" alt="orig">
+                <div class="img-label">Original</div>
+              </div>
+              ${r.cipher_img ? `<div class="img-card">
+                <img src="data:image/png;base64,${r.cipher_img}" alt="cifrada">
+                <div class="img-label">Cifrada</div>
+              </div>` : ''}
+              ${r.recovered_img ? `<div class="img-card">
+                <img src="data:image/png;base64,${r.recovered_img}" alt="descifrada">
+                <div class="img-label">Descifrada</div>
+              </div>` : ''}
+            </div>`
+        }
+      </div>`;
+  });
+
+  // ── Performance ──────────────────────────────────────────────────
+  const times = [jR,cR,csR].map(r=>r.elapsed_s||0).filter(Boolean);
+  const maxT = Math.max(...times, 0.001);
+  const minT = Math.min(...times.filter(x=>x>0), 9999);
+  document.getElementById('perf-row').innerHTML = [jR,cR,csR].map(r => {
+    const m=LM[r.lang]||{}, t=r.elapsed_s||0, pct=(t/maxT*100).toFixed(1);
+    const isFastest = times.length>1 && t===minT;
+    return `<div class="perf-bar-wrap">
+      <div class="perf-lang-label" style="color:${m.color}">${m.icon||''} ${r.lang||'?'}</div>
+      <div class="perf-time-label">${r.error?'N/A':t.toFixed(4)+'s'}</div>
+      <div class="perf-bar-track"><div class="perf-bar-fill" style="width:${r.error?0:pct}%;background:${m.color}"></div></div>
+      <div class="perf-rel">${r.error?'⚠ '+r.error.split('\n')[0].substring(0,55):isFastest?'🏆 más rápido':(t>0?(t/minT).toFixed(2)+'× vs más rápido':'—')}</div>
+    </div>`;
+  }).join('');
+
+  // ── Metric cards ─────────────────────────────────────────────────
+  document.getElementById('metrics-cards').innerHTML = [jR,cR,csR].map(r => {
+    const m=LM[r.lang]||{}, mets=r.metrics||[], last=mets[mets.length-1]||{};
+    const e=last.entropy||0, chi=last.chi||0, corr=last.corr||0, ePct=(e/8*100).toFixed(1);
+    return `<div class="metric-card">
+      <div class="metric-card-header">
+        <span class="metric-lang ${m.cls||''}">${m.icon||''} ${r.lang||'?'}</span>
+        <span class="metric-time">${r.elapsed_s?r.elapsed_s.toFixed(4)+'s':'N/A'}</span>
+      </div>
+      ${r.error?`<div style="font-size:.7rem;color:#f87171;line-height:1.5">${r.error.substring(0,120)}</div>`
+        :`<div class="metric-row"><span class="metric-name">Entropía</span><span class="metric-value" style="color:${m.color}">${e.toFixed(4)} bits</span></div>
+         <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${ePct}%;background:${m.color}"></div></div>
+         <div class="metric-row"><span class="metric-name">Chi²</span><span class="metric-value">${chi.toFixed(1)}</span></div>
+         <div class="metric-row"><span class="metric-name">Correlación</span><span class="metric-value">${corr.toFixed(4)}</span></div>
+         <div class="metric-row"><span class="metric-name">Recuperación</span><span class="${r.recovery==='OK'?'recovery-ok':'recovery-fail'}">${r.recovery||'—'}</span></div>`}
+    </div>`;
+  }).join('');
+
+  // ── Charts ───────────────────────────────────────────────────────
+  const valid = [jR,cR,csR].filter(r=>!r.error&&(r.metrics||[]).length>1);
+  drawMultiChart('compare-chart', valid, 'entropy');
+  const rich = valid.reduce((a,b)=>(b.metrics||[]).length>(a.metrics||[]).length?b:a, valid[0]||{});
+  const src = document.getElementById('chi-source'); if(src) src.textContent=rich.lang||'—';
+  if ((rich.metrics||[]).length>1)
+    drawLineChart('chi-chart',(rich.metrics||[]).map(m=>m.gen),(rich.metrics||[]).map(m=>m.chi),'Chi²',(LM[rich.lang]||{}).color||'var(--accent2)',null);
+
+  // ── Table ────────────────────────────────────────────────────────
+  const last=r=>(r.metrics||[])[(r.metrics||[]).length-1]||{};
+  const rows=[
+    {f:'Pasos',        j:(jR.metrics||[]).length-1, c:(cR.metrics||[]).length-1, cs:(csR.metrics||[]).length-1},
+    {f:'Tiempo (s)',   j:jR.elapsed_s?.toFixed(4), c:cR.elapsed_s?.toFixed(4), cs:csR.elapsed_s?.toFixed(4)},
+    {f:'Entropía',     j:last(jR).entropy?.toFixed(4), c:last(cR).entropy?.toFixed(4), cs:last(csR).entropy?.toFixed(4)},
+    {f:'Chi²',         j:last(jR).chi?.toFixed(2),     c:last(cR).chi?.toFixed(2),     cs:last(csR).chi?.toFixed(2)},
+    {f:'Correlación',  j:last(jR).corr?.toFixed(4),    c:last(cR).corr?.toFixed(4),    cs:last(csR).corr?.toFixed(4)},
+    {f:'Recuperación', j:jR.recovery,  c:cR.recovery,  cs:csR.recovery},
+    {f:'SHA-256',      j:'MessageDigest', c:'OpenSSL',  cs:'System.Security'},
+    {f:'Runtime',      j:'JVM', c:'nativo -O2', cs:'.NET 8'},
+  ];
+  document.getElementById('comparison-table').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;padding:1rem">
+    <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:.6rem .4rem;color:var(--muted);font-weight:400;font-size:.65rem;text-transform:uppercase;letter-spacing:.1em">Campo</th>
+        <th style="padding:.6rem;color:var(--accent1);font-weight:700">☕ Java</th>
+        <th style="padding:.6rem;color:var(--accent2);font-weight:700">⚙ C</th>
+        <th style="padding:.6rem;color:var(--accent3);font-weight:700">🔷 C#</th>
+      </tr></thead>
+      <tbody>${rows.map((r,i)=>`<tr style="border-bottom:1px solid var(--border);background:${i%2?'rgba(255,255,255,.01)':'transparent'}">
+        <td style="padding:.5rem .4rem;color:var(--muted)">${r.f}</td>
+        <td style="padding:.5rem;text-align:center;color:var(--accent1)">${r.j??'—'}</td>
+        <td style="padding:.5rem;text-align:center;color:var(--accent2)">${r.c??'—'}</td>
+        <td style="padding:.5rem;text-align:center;color:var(--accent3)">${r.cs??'—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+
+  // ── Log ──────────────────────────────────────────────────────────
+  let log='';
+  [jR,cR,csR].forEach(r=>{
+    const cls=r.lang==='Java'?'log-java':r.lang==='C'?'log-c':'log-cs';
+    if(r.error) log+=`<span class="${cls}">[${r.lang}] ERROR: ${r.error}\n</span>`;
+    else log+=`<span class="${cls}">[${r.lang}] steps=${(r.metrics||[]).length-1}, elapsed=${r.elapsed_s}s, recovery=${r.recovery||'—'}\n</span>`;
+  });
+  document.getElementById('log-box').innerHTML = log||'(sin salida)';
+}
+
+// ── Charts ────────────────────────────────────────────────────────────
+function drawMultiChart(id, langResults, field) {
+  const canvas=document.getElementById(id); if(!canvas||!langResults.length) return;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=canvas.offsetWidth*dpr; canvas.height=220*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const W=canvas.offsetWidth,H=220,pad={t:10,r:80,b:30,l:55};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  const mn=field==='entropy'?0:Math.min(...langResults.flatMap(r=>(r.metrics||[]).map(m=>m[field])))*0.9;
+  const mx=field==='entropy'?8:Math.max(...langResults.flatMap(r=>(r.metrics||[]).map(m=>m[field])))*1.05;
+  const ys=v=>pad.t+ph-((v-mn)/(mx-mn||1))*ph;
+  // grid
+  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pad.t+ph*(i/4);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.25)';ctx.font="10px 'Space Mono'";ctx.fillText((mx-(mx-mn)*(i/4)).toFixed(field==='entropy'?1:0),2,y+4);}
+  langResults.forEach(r=>{
+    const m=LM[r.lang]||{}, mets=r.metrics||[];
+    if(!mets.length) return;
+    const xs=i=>pad.l+(i/(mets.length-1||1))*pw;
+    ctx.beginPath();ctx.strokeStyle=m.color||'#fff';ctx.lineWidth=2;ctx.lineJoin='round';
+    mets.forEach((me,i)=>i===0?ctx.moveTo(xs(i),ys(me[field])):ctx.lineTo(xs(i),ys(me[field])));
+    ctx.stroke();
+    const last=mets[mets.length-1];
+    if(last){ctx.fillStyle=m.color||'#fff';ctx.font="bold 10px 'Space Mono'";ctx.fillText(r.lang,xs(mets.length-1)+4,ys(last[field])+4);}
+  });
+}
+
+function drawLineChart(id,labels,values,label,color,yRange){
+  const canvas=document.getElementById(id); if(!canvas||!values.length) return;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=canvas.offsetWidth*dpr; canvas.height=220*dpr;
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const W=canvas.offsetWidth,H=220,pad={t:10,r:20,b:30,l:55};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  const mn=yRange?yRange[0]:Math.min(...values)*.95;
+  const mx=yRange?yRange[1]:Math.max(...values)*1.05;
+  const ys=v=>pad.t+ph-((v-mn)/(mx-mn||1))*ph;
+  const xs=i=>pad.l+(i/(labels.length-1||1))*pw;
+  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=pad.t+ph*(i/4);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.25)';ctx.font="10px 'Space Mono'";ctx.fillText((mx-(mx-mn)*(i/4)).toFixed(2),2,y+4);}
+  ctx.beginPath();ctx.moveTo(xs(0),ys(values[0]));values.forEach((v,i)=>ctx.lineTo(xs(i),ys(v)));ctx.lineTo(xs(values.length-1),pad.t+ph);ctx.lineTo(pad.l,pad.t+ph);ctx.closePath();ctx.fillStyle='rgba(0,255,200,.05)';ctx.fill();
+  ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=2;ctx.lineJoin='round';values.forEach((v,i)=>i===0?ctx.moveTo(xs(i),ys(v)):ctx.lineTo(xs(i),ys(v)));ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font="9px 'Space Mono'";const step=Math.ceil(labels.length/6);labels.forEach((l,i)=>{if(i%step===0||i===labels.length-1)ctx.fillText('g'+l,xs(i)-5,H-8)});
+}
+
+// ── Simulate demo data ────────────────────────────────────────────────
+function simulateData(){
+  const steps=10;
+  const mkM=(off)=>Array.from({length:steps+1},(_,i)=>({
+    gen:i,
+    entropy:Math.min(8,Math.max(0,3.5+(i/steps)*4.0+off+(Math.random()-.5)*.15)),
+    chi:Math.max(200,28000-i*2200+off*400+(Math.random()-.5)*300),
+    corr:Math.max(-1,Math.min(1,0.82-(i/steps)*0.86+(Math.random()-.5)*.04)),
+  }));
+  const noiseImg=()=>{const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d'),id=ctx.createImageData(64,64);for(let i=0;i<id.data.length;i+=4){id.data[i]=~~(Math.random()*255);id.data[i+1]=~~(Math.random()*255);id.data[i+2]=~~(Math.random()*255);id.data[i+3]=255;}ctx.putImageData(id,0,0);return c.toDataURL('image/png').split(',')[1];};
+  const origC=document.createElement('canvas');origC.width=origC.height=64;const oc=origC.getContext('2d');
+  oc.fillStyle='#336699';oc.fillRect(0,0,32,32);oc.fillStyle='#cc4422';oc.fillRect(32,0,32,32);
+  oc.fillStyle='#22aa55';oc.fillRect(0,32,32,32);oc.fillStyle='#aa22cc';oc.fillRect(32,32,32,32);
+  const origB64=origC.toDataURL('image/png').split(',')[1];
+  return {image_size:[64,64],steps,original_img:origB64,results:[
+    {lang:'Java',elapsed_s:0.83,recovery:'OK',metrics:mkM(0),   cipher_img:noiseImg(),recovered_img:origB64},
+    {lang:'C',   elapsed_s:0.04,recovery:'OK',metrics:mkM(0.08),cipher_img:noiseImg(),recovered_img:origB64},
+    {lang:'C#',  elapsed_s:0.14,recovery:'OK',metrics:mkM(0.04),cipher_img:noiseImg(),recovered_img:origB64},
+  ]};
+}
+
+const delay=ms=>new Promise(r=>setTimeout(r,ms));
+</script>
+</body>
+</html>
