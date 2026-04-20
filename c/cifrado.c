@@ -94,6 +94,32 @@ static int bytes_to_hex(const uint8_t *in, size_t in_len, char *out, size_t out_
     return 0;
 }
 
+static int hex_val(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static int parse_hex_exact(const char *hex, uint8_t *out, size_t out_len) {
+    size_t i;
+    if (!hex || !out) {
+        return -1;
+    }
+    if (strlen(hex) != out_len * 2u) {
+        return -2;
+    }
+    for (i = 0; i < out_len; ++i) {
+        int hi = hex_val(hex[i * 2]);
+        int lo = hex_val(hex[i * 2 + 1]);
+        if (hi < 0 || lo < 0) {
+            return -3;
+        }
+        out[i] = (uint8_t)((hi << 4) | lo);
+    }
+    return 0;
+}
+
 static int construir_ruta_derivada(
     const char *base_path,
     const char *suffix,
@@ -338,6 +364,8 @@ static int cifrar_imagen(
     uint32_t ancho,
     uint16_t canales,
     uint16_t rondas,
+    const uint8_t *z_in,
+    const uint8_t *salt_in,
     uint16_t **cipher_prev_u16_out,
     uint16_t **cipher_u16_out,
     size_t *cipher_elems_out,
@@ -372,31 +400,41 @@ static int cifrar_imagen(
         cur[i] = (uint16_t)((img_u8[i] + 1u) % AUTOMATA_MOD_BASE);
     }
 
-    rc = x25519_generar_par(&a);
-    if (rc != 0) {
-        rc = -10;
-        goto cleanup;
-    }
-    rc = x25519_generar_par(&b);
-    if (rc != 0) {
-        rc = -11;
-        goto cleanup;
-    }
-    rc = x25519_calcular_secreto_compartido(a.sk, b.pk, z1);
-    if (rc != 0) {
-        rc = -12;
-        goto cleanup;
-    }
-    rc = x25519_calcular_secreto_compartido(b.sk, a.pk, z2);
-    if (rc != 0 || memcmp(z1, z2, 32) != 0 || es_cero_32(z1)) {
-        rc = -13;
-        goto cleanup;
-    }
+    if (z_in && salt_in) {
+        memcpy(z1, z_in, 32);
+        memcpy(salt, salt_in, 32);
+        salt_len = 32;
+        if (es_cero_32(z1)) {
+            rc = -10;
+            goto cleanup;
+        }
+    } else {
+        rc = x25519_generar_par(&a);
+        if (rc != 0) {
+            rc = -11;
+            goto cleanup;
+        }
+        rc = x25519_generar_par(&b);
+        if (rc != 0) {
+            rc = -12;
+            goto cleanup;
+        }
+        rc = x25519_calcular_secreto_compartido(a.sk, b.pk, z1);
+        if (rc != 0) {
+            rc = -13;
+            goto cleanup;
+        }
+        rc = x25519_calcular_secreto_compartido(b.sk, a.pk, z2);
+        if (rc != 0 || memcmp(z1, z2, 32) != 0 || es_cero_32(z1)) {
+            rc = -14;
+            goto cleanup;
+        }
 
-    rc = llaves_generar_salt(salt, &salt_len);
-    if (rc != 0) {
-        rc = -14;
-        goto cleanup;
+        rc = llaves_generar_salt(salt, &salt_len);
+        if (rc != 0) {
+            rc = -15;
+            goto cleanup;
+        }
     }
 
     ctx.alto = alto;
@@ -406,7 +444,7 @@ static int cifrar_imagen(
 
     rc = llaves_derivar_sesion(z1, salt, salt_len, &ctx, &ses);
     if (rc != 0) {
-        rc = -15;
+        rc = -16;
         goto cleanup;
     }
 
@@ -417,14 +455,14 @@ static int cifrar_imagen(
 
         rc = llaves_derivar_ronda(&ses, &ctx, i, &rk);
         if (rc != 0) {
-            rc = -20;
+            rc = -21;
             goto cleanup;
         }
 
         memcpy(cur_perm, cur, elems * sizeof(uint16_t));
         rc = permutacion_aplicar_u16_imagen(cur_perm, alto, ancho, canales, rk.perm_index);
         if (rc != 0) {
-            rc = -21;
+            rc = -22;
             goto cleanup;
         }
 
@@ -434,7 +472,7 @@ static int cifrar_imagen(
 
         rc = automata_step_u16(prev, cur_perm, next, alto, ancho, canales, k1, k2, i, bc);
         if (rc != 0) {
-            rc = -22;
+            rc = -23;
             goto cleanup;
         }
 
@@ -574,18 +612,30 @@ int main(int argc, char **argv) {
     uint8_t *cipher_u8 = NULL;
     uint8_t z_sesion[32];
     uint8_t salt_sesion[32];
+    uint8_t z_ext[32];
+    uint8_t salt_ext[32];
+    const uint8_t *z_ptr = NULL;
+    const uint8_t *salt_ptr = NULL;
     char out_prev_path[4096];
     char out_session_path[4096];
     int rc;
     int modo_auto = 0;
 
-    if (argc == 5) {
+    if (argc == 5 || argc == 7) {
         input_path = argv[1];
         output_u16_path = argv[2];
         output_u8_path = argv[3];
         rondas = (uint16_t)strtoul(argv[4], NULL, 10);
         modo_auto = 1;
-    } else if (argc == 8) {
+        if (argc == 7) {
+            if (parse_hex_exact(argv[5], z_ext, 32) != 0 || parse_hex_exact(argv[6], salt_ext, 32) != 0) {
+                fprintf(stderr, "Error: Z_hex o salt_hex invalidos.\n");
+                return 1;
+            }
+            z_ptr = z_ext;
+            salt_ptr = salt_ext;
+        }
+    } else if (argc == 8 || argc == 10) {
         input_path = argv[1];
         output_u16_path = argv[2];
         output_u8_path = argv[3];
@@ -594,9 +644,19 @@ int main(int argc, char **argv) {
         canales = (uint16_t)strtoul(argv[6], NULL, 10);
         rondas = (uint16_t)strtoul(argv[7], NULL, 10);
         modo_auto = 0;
+        if (argc == 10) {
+            if (parse_hex_exact(argv[8], z_ext, 32) != 0 || parse_hex_exact(argv[9], salt_ext, 32) != 0) {
+                fprintf(stderr, "Error: Z_hex o salt_hex invalidos.\n");
+                return 1;
+            }
+            z_ptr = z_ext;
+            salt_ptr = salt_ext;
+        }
     } else {
         fprintf(stderr, "Uso auto PNG/BMP: %s <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas>\n", argv[0]);
+        fprintf(stderr, "Uso auto compartido: %s <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
         fprintf(stderr, "Uso RAW:          %s <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas>\n", argv[0]);
+        fprintf(stderr, "Uso RAW compartido: %s <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
         return 1;
     }
 
@@ -608,6 +668,7 @@ int main(int argc, char **argv) {
 
     rc = cifrar_imagen(
         img_bytes, alto, ancho, canales, rondas,
+        z_ptr, salt_ptr,
         &cipher_prev_u16, &cipher_u16, &cipher_elems,
         z_sesion, salt_sesion
     );

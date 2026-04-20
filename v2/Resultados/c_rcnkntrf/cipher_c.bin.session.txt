@@ -1,0 +1,12 @@
+# Sesion de cifrado
+ancho=512
+alto=512
+canales=3
+rondas=10
+x_prev_path=/home/victordlm/Documentos/TT/v2/Resultados/c_rcnkntrf/cipher_c.bin.prev.bin
+x_cur_path=/home/victordlm/Documentos/TT/v2/Resultados/c_rcnkntrf/cipher_c.bin
+z_hex=68517f928e32464356856a26bf25b79e1ebbbb171d14144781eddb6ee99fe255
+salt_hex=2597eb3b89ead59e82e3a61f742b91de41046133cfec2cf037bf101ed64cfa8f
+
+# Ejemplo descifrado:
+# ./descifrador "/home/victordlm/Documentos/TT/v2/Resultados/c_rcnkntrf/cipher_c.bin.prev.bin" "/home/victordlm/Documentos/TT/v2/Resultados/c_rcnkntrf/cipher_c.bin" salida.png 512 512 3 10 68517f928e32464356856a26bf25b79e1ebbbb171d14144781eddb6ee99fe255 2597eb3b89ead59e82e3a61f742b91de41046133cfec2cf037bf101ed64cfa8f

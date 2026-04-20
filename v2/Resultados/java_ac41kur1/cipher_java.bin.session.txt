@@ -1,0 +1,9 @@
+# Sesion de cifrado
+ancho=512
+alto=512
+canales=3
+rondas=10
+x_prev_path=/home/victordlm/Documentos/TT/v2/Resultados/java_ac41kur1/cipher_java.bin.prev.bin
+x_cur_path=/home/victordlm/Documentos/TT/v2/Resultados/java_ac41kur1/cipher_java.bin
+z_hex=70be578cc396812895858adb87d6b73ba70dea0a6c42d78104823c9c8979e768
+salt_hex=43db90dac207823ed6bdeb48a360c763a0c4ba982e9bf99a946491f144351985

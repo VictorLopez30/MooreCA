@@ -27,7 +27,7 @@ C_DIR = ROOT_DIR / "c"
 JAVA_DIR = ROOT_DIR / "java"
 CS_DIR = ROOT_DIR / "cs"
 BUILD_DIR = BASE_DIR / "build"
-MAX_DIM = 64
+RESULTS_DIR = BASE_DIR / "Resultados"
 
 C_CIFRADOR = BUILD_DIR / "cifrador_c"
 C_DESCIFRADOR = BUILD_DIR / "descifrador_c"
@@ -69,6 +69,13 @@ def parse_session_file(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         data[key] = value
     return data
+
+
+def new_shared_session() -> dict[str, str]:
+    return {
+        "z_hex": os.urandom(32).hex(),
+        "salt_hex": os.urandom(32).hex(),
+    }
 
 
 def compute_metrics(image_path: Path) -> list[dict[str, float | int]]:
@@ -270,118 +277,127 @@ def finalize_result(lang: str, workdir: Path, original_png: Path, cipher_preview
     }
 
 
-def run_c(input_png: Path, steps: int, passphrase: str) -> dict:
+def run_c(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
     del passphrase
     ok, msg = ensure_c_binaries()
     if not ok:
         return result_error("C", msg)
 
-    with tempfile.TemporaryDirectory(prefix="tt_c_", dir=BASE_DIR) as tmpdir_str:
-        tmpdir = Path(tmpdir_str)
-        out_cipher = tmpdir / "cipher_c.bin"
-        out_preview = tmpdir / "cipher_c.png"
-        out_recovered = tmpdir / "recovered_c.png"
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    tmpdir = Path(tempfile.mkdtemp(prefix="c_", dir=RESULTS_DIR))
+    out_cipher = tmpdir / "cipher_c.bin"
+    out_preview = tmpdir / "cipher_c.png"
+    out_recovered = tmpdir / "recovered_c.png"
 
-        t0 = time.perf_counter()
-        proc = run_cmd([str(C_CIFRADOR), str(input_png), str(out_cipher), str(out_preview), str(steps)], cwd=ROOT_DIR, timeout=240)
-        wall = time.perf_counter() - t0
-        if proc.returncode != 0:
-            return result_error("C", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    t0 = time.perf_counter()
+    cmd = [str(C_CIFRADOR), str(input_png), str(out_cipher), str(out_preview), str(steps)]
+    if shared_session:
+        cmd.extend([shared_session["z_hex"], shared_session["salt_hex"]])
+    proc = run_cmd(cmd, cwd=ROOT_DIR, timeout=240)
+    wall = time.perf_counter() - t0
+    if proc.returncode != 0:
+        return result_error("C", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
-        session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
-        proc = run_cmd([
-            str(C_DESCIFRADOR),
-            session["x_prev_path"],
-            session["x_cur_path"],
-            str(out_recovered),
-            session["ancho"],
-            session["alto"],
-            session["canales"],
-            session["rondas"],
-            session["z_hex"],
-            session["salt_hex"],
-        ], cwd=ROOT_DIR, timeout=240)
-        wall = time.perf_counter() - t0
-        if proc.returncode != 0:
-            return result_error("C", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
+    proc = run_cmd([
+        str(C_DESCIFRADOR),
+        session["x_prev_path"],
+        session["x_cur_path"],
+        str(out_recovered),
+        session["ancho"],
+        session["alto"],
+        session["canales"],
+        session["rondas"],
+        session["z_hex"],
+        session["salt_hex"],
+    ], cwd=ROOT_DIR, timeout=240)
+    wall = time.perf_counter() - t0
+    if proc.returncode != 0:
+        return result_error("C", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
-        return finalize_result("C", tmpdir, input_png, out_preview, out_recovered, wall)
+    return finalize_result("C", tmpdir, input_png, out_preview, out_recovered, wall)
 
 
-def run_java(input_png: Path, steps: int, passphrase: str) -> dict:
+def run_java(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
     del passphrase
     ok, msg = ensure_java_build()
     if not ok:
         return result_error("Java", msg)
 
-    with tempfile.TemporaryDirectory(prefix="tt_java_", dir=BASE_DIR) as tmpdir_str:
-        tmpdir = Path(tmpdir_str)
-        out_cipher = tmpdir / "cipher_java.bin"
-        out_preview = tmpdir / "cipher_java.png"
-        out_recovered = tmpdir / "recovered_java.png"
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    tmpdir = Path(tempfile.mkdtemp(prefix="java_", dir=RESULTS_DIR))
+    out_cipher = tmpdir / "cipher_java.bin"
+    out_preview = tmpdir / "cipher_java.png"
+    out_recovered = tmpdir / "recovered_java.png"
 
-        t0 = time.perf_counter()
-        proc = run_cmd(["java", "-cp", str(JAVA_BUILD_DIR), "Cifrado", str(input_png), str(out_cipher), str(out_preview), str(steps)], cwd=ROOT_DIR, timeout=300)
-        wall = time.perf_counter() - t0
-        if proc.returncode != 0:
-            return result_error("Java", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    t0 = time.perf_counter()
+    cmd = ["java", "-cp", str(JAVA_BUILD_DIR), "Cifrado", str(input_png), str(out_cipher), str(out_preview), str(steps)]
+    if shared_session:
+        cmd.extend([shared_session["z_hex"], shared_session["salt_hex"]])
+    proc = run_cmd(cmd, cwd=ROOT_DIR, timeout=300)
+    wall = time.perf_counter() - t0
+    if proc.returncode != 0:
+        return result_error("Java", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
-        session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
-        proc = run_cmd([
-            "java", "-cp", str(JAVA_BUILD_DIR), "Descifrado",
-            session["x_prev_path"],
-            session["x_cur_path"],
-            str(out_recovered),
-            session["ancho"],
-            session["alto"],
-            session["canales"],
-            session["rondas"],
-            session["z_hex"],
-            session["salt_hex"],
-        ], cwd=ROOT_DIR, timeout=300)
-        wall = time.perf_counter() - t0
-        if proc.returncode != 0:
-            return result_error("Java", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
+    proc = run_cmd([
+        "java", "-cp", str(JAVA_BUILD_DIR), "Descifrado",
+        session["x_prev_path"],
+        session["x_cur_path"],
+        str(out_recovered),
+        session["ancho"],
+        session["alto"],
+        session["canales"],
+        session["rondas"],
+        session["z_hex"],
+        session["salt_hex"],
+    ], cwd=ROOT_DIR, timeout=300)
+    wall = time.perf_counter() - t0
+    if proc.returncode != 0:
+        return result_error("Java", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
-        return finalize_result("Java", tmpdir, input_png, out_preview, out_recovered, wall)
+    return finalize_result("Java", tmpdir, input_png, out_preview, out_recovered, wall)
 
 
-def run_cs(input_png: Path, steps: int, passphrase: str) -> dict:
+def run_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
     del passphrase
     ok, msg = ensure_cs_projects()
     if not ok:
         return result_error("C#", msg)
 
-    with tempfile.TemporaryDirectory(prefix="tt_cs_", dir=BASE_DIR) as tmpdir_str:
-        tmpdir = Path(tmpdir_str)
-        out_cipher = tmpdir / "cipher_cs.bin"
-        out_preview = tmpdir / "cipher_cs.png"
-        out_recovered = tmpdir / "recovered_cs.png"
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    tmpdir = Path(tempfile.mkdtemp(prefix="cs_", dir=RESULTS_DIR))
+    out_cipher = tmpdir / "cipher_cs.bin"
+    out_preview = tmpdir / "cipher_cs.png"
+    out_recovered = tmpdir / "recovered_cs.png"
 
-        t0 = time.perf_counter()
-        proc = run_cmd(["dotnet", "run", "--project", str(CS_CIFRADO_PROJ), "--", str(input_png), str(out_cipher), str(out_preview), str(steps)], cwd=ROOT_DIR, timeout=360)
-        wall = time.perf_counter() - t0
-        if proc.returncode != 0:
-            return result_error("C#", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    t0 = time.perf_counter()
+    cmd = ["dotnet", "run", "--project", str(CS_CIFRADO_PROJ), "--", str(input_png), str(out_cipher), str(out_preview), str(steps)]
+    if shared_session:
+        cmd.extend([shared_session["z_hex"], shared_session["salt_hex"]])
+    proc = run_cmd(cmd, cwd=ROOT_DIR, timeout=360)
+    wall = time.perf_counter() - t0
+    if proc.returncode != 0:
+        return result_error("C#", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
-        session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
-        proc = run_cmd([
-            "dotnet", "run", "--project", str(CS_DESCIFRADO_PROJ), "--",
-            session["x_prev_path"],
-            session["x_cur_path"],
-            str(out_recovered),
-            session["ancho"],
-            session["alto"],
-            session["canales"],
-            session["rondas"],
-            session["z_hex"],
-            session["salt_hex"],
-        ], cwd=ROOT_DIR, timeout=360)
-        wall = time.perf_counter() - t0
-        if proc.returncode != 0:
-            return result_error("C#", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
+    proc = run_cmd([
+        "dotnet", "run", "--project", str(CS_DESCIFRADO_PROJ), "--",
+        session["x_prev_path"],
+        session["x_cur_path"],
+        str(out_recovered),
+        session["ancho"],
+        session["alto"],
+        session["canales"],
+        session["rondas"],
+        session["z_hex"],
+        session["salt_hex"],
+    ], cwd=ROOT_DIR, timeout=360)
+    wall = time.perf_counter() - t0
+    if proc.returncode != 0:
+        return result_error("C#", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
-        return finalize_result("C#", tmpdir, input_png, out_preview, out_recovered, wall)
+    return finalize_result("C#", tmpdir, input_png, out_preview, out_recovered, wall)
 
 
 @app.route("/api/run", methods=["POST"])
@@ -391,10 +407,12 @@ def api_run():
 
     steps = int(request.form.get("steps", 10))
     passphrase = request.form.get("pass", "unused")
+    session_mode = request.form.get("session_mode", "independent")
+    if session_mode not in {"independent", "shared"}:
+        session_mode = "independent"
 
     f = request.files["image"]
     img = Image.open(f.stream).convert("RGB")
-    img.thumbnail((MAX_DIM, MAX_DIM), Image.LANCZOS)
     width, height = img.size
 
     buf = io.BytesIO()
@@ -405,9 +423,10 @@ def api_run():
         input_png = Path(tmp.name)
     try:
         img.save(input_png, format="PNG")
-        java_r = run_java(input_png, steps, passphrase)
-        c_r = run_c(input_png, steps, passphrase)
-        cs_r = run_cs(input_png, steps, passphrase)
+        shared_session = new_shared_session() if session_mode == "shared" else None
+        java_r = run_java(input_png, steps, passphrase, shared_session)
+        c_r = run_c(input_png, steps, passphrase, shared_session)
+        cs_r = run_cs(input_png, steps, passphrase, shared_session)
     finally:
         try:
             input_png.unlink()
@@ -417,6 +436,7 @@ def api_run():
     return jsonify({
         "image_size": [height, width],
         "steps": steps,
+        "session_mode": session_mode,
         "original_img": orig_b64,
         "results": [java_r, c_r, cs_r],
     })

@@ -1,12 +1,13 @@
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HexFormat;
 
 public final class Cifrado {
     public static void main(String[] args) throws Exception {
-        if (args.length != 4 && args.length != 7) {
+        if (args.length != 4 && args.length != 7 && args.length != 6 && args.length != 9) {
             System.err.println("Uso auto PNG/BMP: java Cifrado <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas>");
+            System.err.println("Uso auto compartido: java Cifrado <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas> <Z_hex_64> <salt_hex_64>");
             System.err.println("Uso RAW: java Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas>");
+            System.err.println("Uso RAW compartido: java Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
             System.exit(1);
         }
 
@@ -15,20 +16,32 @@ public final class Cifrado {
         String outPreview = args[2];
         int rounds;
         Integer width = null, height = null, channels = null;
+        byte[] z = null;
+        byte[] salt = null;
 
-        if (args.length == 4) {
+        if (args.length == 4 || args.length == 6) {
             rounds = Integer.parseInt(args[3]);
+            if (args.length == 6) {
+                z = HexFormat.of().parseHex(args[4]);
+                salt = HexFormat.of().parseHex(args[5]);
+            }
         } else {
             width = Integer.parseInt(args[3]);
             height = Integer.parseInt(args[4]);
             channels = Integer.parseInt(args[5]);
             rounds = Integer.parseInt(args[6]);
+            if (args.length == 9) {
+                z = HexFormat.of().parseHex(args[7]);
+                salt = HexFormat.of().parseHex(args[8]);
+            }
         }
 
         Common.LoadedImage input = Common.loadImageOrRaw(inputPath, width, height, channels);
         Common.RcaContext ctx = new Common.RcaContext(input.height(), input.width(), input.channels(), rounds);
-        byte[] z = Llaves.deriveSharedSecret();
-        byte[] salt = Llaves.generateSalt();
+        if (z == null || salt == null) {
+            z = Llaves.deriveSharedSecret();
+            salt = Llaves.generateSalt();
+        }
         var session = Llaves.deriveSession(z, salt, ctx);
 
         int elems = input.raw().length;

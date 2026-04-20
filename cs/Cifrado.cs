@@ -8,10 +8,12 @@ internal static class Cifrado
     {
         try
         {
-            if (args.Length != 4 && args.Length != 7)
+            if (args.Length != 4 && args.Length != 7 && args.Length != 6 && args.Length != 9)
             {
                 Console.Error.WriteLine("Uso auto PNG/BMP: Cifrado <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas>");
+                Console.Error.WriteLine("Uso auto compartido: Cifrado <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas> <Z_hex_64> <salt_hex_64>");
                 Console.Error.WriteLine("Uso RAW: Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas>");
+                Console.Error.WriteLine("Uso RAW compartido: Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
                 return 1;
             }
 
@@ -21,11 +23,18 @@ internal static class Cifrado
             ushort rounds;
             uint width = 0, height = 0;
             ushort channels = 0;
-            bool auto = args.Length == 4;
+            bool auto = args.Length == 4 || args.Length == 6;
+            byte[]? z = null;
+            byte[]? salt = null;
 
             if (auto)
             {
                 rounds = ushort.Parse(args[3]);
+                if (args.Length == 6)
+                {
+                    z = HexUtil.FromHex(args[4]);
+                    salt = HexUtil.FromHex(args[5]);
+                }
             }
             else
             {
@@ -33,20 +42,29 @@ internal static class Cifrado
                 height = uint.Parse(args[4]);
                 channels = ushort.Parse(args[5]);
                 rounds = ushort.Parse(args[6]);
+                if (args.Length == 9)
+                {
+                    z = HexUtil.FromHex(args[7]);
+                    salt = HexUtil.FromHex(args[8]);
+                }
             }
 
             var input = ImageUtil.LoadImageOrRaw(inputPath, width, height, channels);
             var ctx = new RcaContext(input.Height, input.Width, input.Channels, rounds);
 
-            var (privA, pubA) = Keys.GenerateX25519Pair();
-            var (privB, pubB) = Keys.GenerateX25519Pair();
-            var zA = Keys.SharedSecretFromPkcs8(privA, pubB);
-            var zB = Keys.SharedSecretFromPkcs8(privB, pubA);
-            if (!zA.AsSpan().SequenceEqual(zB))
-                throw new InvalidOperationException("No se pudo acordar el secreto compartido.");
+            if (z is null || salt is null)
+            {
+                var (privA, pubA) = Keys.GenerateX25519Pair();
+                var (privB, pubB) = Keys.GenerateX25519Pair();
+                var zA = Keys.SharedSecretFromPkcs8(privA, pubB);
+                var zB = Keys.SharedSecretFromPkcs8(privB, pubA);
+                if (!zA.AsSpan().SequenceEqual(zB))
+                    throw new InvalidOperationException("No se pudo acordar el secreto compartido.");
+                z = zA;
+                salt = Keys.GenerateSalt();
+            }
 
-            var salt = Keys.GenerateSalt();
-            var session = Keys.DeriveSession(zA, salt, ctx);
+            var session = Keys.DeriveSession(z, salt, ctx);
 
             var elems = input.Raw.Length;
             var prev = new ushort[elems];
@@ -85,7 +103,7 @@ internal static class Cifrado
                 Rounds = rounds.ToString(),
                 PrevPath = prevPath,
                 CurPath = outCipher,
-                ZHex = HexUtil.ToHex(zA),
+                ZHex = HexUtil.ToHex(z),
                 SaltHex = HexUtil.ToHex(salt)
             };
             sessionFile.Save(outCipher + ".session.txt");

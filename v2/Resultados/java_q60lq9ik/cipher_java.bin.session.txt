@@ -1,0 +1,9 @@
+# Sesion de cifrado
+ancho=512
+alto=512
+canales=3
+rondas=10
+x_prev_path=/home/victordlm/Documentos/TT/v2/Resultados/java_q60lq9ik/cipher_java.bin.prev.bin
+x_cur_path=/home/victordlm/Documentos/TT/v2/Resultados/java_q60lq9ik/cipher_java.bin
+z_hex=7876286ba5a6b99329060ff4f4142bd553bf923ac93b79e652cb3a09fd19da1e
+salt_hex=fb49e46769f5bd061173d0dc4e29c199b42eb82b898a671c6bd502db87f3f743
