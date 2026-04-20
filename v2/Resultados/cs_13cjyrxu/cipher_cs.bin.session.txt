@@ -1,9 +1,0 @@
-# Sesion de cifrado
-ancho=512
-alto=512
-canales=3
-rondas=10
-x_prev_path=/home/victordlm/Documentos/TT/v2/Resultados/cs_13cjyrxu/cipher_cs.bin.prev.bin
-x_cur_path=/home/victordlm/Documentos/TT/v2/Resultados/cs_13cjyrxu/cipher_cs.bin
-z_hex=7d24b62ee8df0266478bf25080ffb01b46e4a6f9e406e423a5ce251794d1a035
-salt_hex=48db299c7c92b2198cb83204eaaf16f4034af168d0b2948ab86bde0905d49bc3

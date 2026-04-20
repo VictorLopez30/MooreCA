@@ -1,9 +1,0 @@
-# Sesion de cifrado
-ancho=512
-alto=512
-canales=3
-rondas=10
-x_prev_path=/home/victordlm/Documentos/TT/v2/Resultados/java_qcz13hha/cipher_java.bin.prev.bin
-x_cur_path=/home/victordlm/Documentos/TT/v2/Resultados/java_qcz13hha/cipher_java.bin
-z_hex=53a976fb080aa9cb96fd46148f2c912a4e4f996a37090d5e67781399ebd1ae61
-salt_hex=9b9fbb507ed4e2f0c4b6cdd8519855ca6fc7e774f17f874eb96586ba6dec9af8

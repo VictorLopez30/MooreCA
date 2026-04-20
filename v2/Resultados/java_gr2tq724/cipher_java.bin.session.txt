@@ -1,9 +1,0 @@
-# Sesion de cifrado
-ancho=512
-alto=512
-canales=3
-rondas=10
-x_prev_path=/home/victordlm/Documentos/TT/v2/Resultados/java_gr2tq724/cipher_java.bin.prev.bin
-x_cur_path=/home/victordlm/Documentos/TT/v2/Resultados/java_gr2tq724/cipher_java.bin
-z_hex=5b164734f9863842fb2aa4daf98d2425808c5dbe19316cbda1a1e82910757e05
-salt_hex=5e769acd0d71a4e4dfc8836415df2a8b572f9b376fc209b64b7ed2c41061f478
