@@ -34,10 +34,17 @@ C_DESCIFRADOR = BUILD_DIR / "descifrador_c"
 JAVA_BUILD_DIR = BUILD_DIR / "java"
 CS_CIFRADO_PROJ = BUILD_DIR / "cs" / "Cifrado" / "Cifrado.csproj"
 CS_DESCIFRADO_PROJ = BUILD_DIR / "cs" / "Descifrado" / "Descifrado.csproj"
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".bmp", ".tif", ".tiff"}
 
 
 def tool_exists(name: str) -> bool:
     return shutil.which(name) is not None
+
+
+def allowed_image_filename(filename: str | None) -> bool:
+    if not filename:
+        return False
+    return Path(filename).suffix.lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int = 180) -> subprocess.CompletedProcess:
@@ -78,6 +85,21 @@ def new_shared_session() -> dict[str, str]:
     }
 
 
+def compute_histogram(image_path: Path) -> dict[str, list[int]]:
+    img = Image.open(image_path).convert("RGB")
+    data = img.tobytes()
+    hist = {
+        "r": [0] * 256,
+        "g": [0] * 256,
+        "b": [0] * 256,
+    }
+    for i in range(0, len(data), 3):
+        hist["r"][data[i]] += 1
+        hist["g"][data[i + 1]] += 1
+        hist["b"][data[i + 2]] += 1
+    return hist
+
+
 def compute_metrics(image_path: Path) -> list[dict[str, float | int]]:
     img = Image.open(image_path).convert("RGB")
     data = list(img.tobytes())
@@ -104,16 +126,15 @@ def compute_metrics(image_path: Path) -> list[dict[str, float | int]]:
     sum_x2 = 0.0
     sum_y2 = 0.0
     sum_xy = 0.0
-    px = list(img.getdata())
     width, height = img.size
+    raw = img.tobytes()
     for y in range(height):
-        row = px[y * width:(y + 1) * width]
         for x in range(width - 1):
-            left = row[x]
-            right = row[x + 1]
+            left_base = (y * width + x) * 3
+            right_base = left_base + 3
             for c in range(3):
-                vx = float(left[c])
-                vy = float(right[c])
+                vx = float(raw[left_base + c])
+                vy = float(raw[right_base + c])
                 pair_count += 1
                 sum_x += vx
                 sum_y += vy
@@ -269,6 +290,7 @@ def finalize_result(lang: str, workdir: Path, original_png: Path, cipher_preview
         "lang": lang,
         "size": f"{img.height}x{img.width}",
         "metrics": compute_metrics(cipher_preview),
+        "histogram": compute_histogram(cipher_preview),
         "elapsed_s": round(elapsed_s, 4),
         "wall_s": round(elapsed_s, 4),
         "recovery": compare_recovery(original_png, recovered_png),
@@ -412,6 +434,9 @@ def api_run():
         session_mode = "independent"
 
     f = request.files["image"]
+    if not allowed_image_filename(f.filename):
+        return jsonify({"error": "Formato no soportado. Usa PNG, BMP o TIFF."}), 400
+
     img = Image.open(f.stream).convert("RGB")
     width, height = img.size
 
@@ -423,6 +448,7 @@ def api_run():
         input_png = Path(tmp.name)
     try:
         img.save(input_png, format="PNG")
+        original_histogram = compute_histogram(input_png)
         shared_session = new_shared_session() if session_mode == "shared" else None
         java_r = run_java(input_png, steps, passphrase, shared_session)
         c_r = run_c(input_png, steps, passphrase, shared_session)
@@ -438,6 +464,7 @@ def api_run():
         "steps": steps,
         "session_mode": session_mode,
         "original_img": orig_b64,
+        "original_histogram": original_histogram,
         "results": [java_r, c_r, cs_r],
     })
 

@@ -106,7 +106,7 @@ public static class ImageUtil
         ushort channels = 0)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
-        if (ext == ".png" || ext == ".bmp")
+        if (ext == ".png" || ext == ".bmp" || ext == ".tif" || ext == ".tiff")
         {
             var tmp = Path.GetTempFileName();
             try
@@ -130,7 +130,7 @@ public static class ImageUtil
     public static void SavePreview(byte[] raw, uint width, uint height, ushort channels, string path)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
-        if ((ext == ".png" || ext == ".bmp") && channels == 3)
+        if ((ext == ".png" || ext == ".bmp" || ext == ".tif" || ext == ".tiff") && channels == 3)
         {
             var tmp = Path.GetTempFileName();
             try

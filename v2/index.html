@@ -45,6 +45,12 @@
   .session-copy{display:flex;flex-direction:column;gap:.2rem}
   .session-copy strong{font-size:.78rem}
   .session-copy span{font-size:.68rem;color:var(--muted);line-height:1.4}
+  .param-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}
+  .param-field{display:flex;flex-direction:column;gap:.35rem}
+  .param-field label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+  .param-field input{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Space Mono',monospace;padding:.7rem .8rem;outline:none;transition:border-color .2s, box-shadow .2s}
+  .param-field input:focus{border-color:var(--accent1);box-shadow:0 0 0 1px rgba(0,255,200,.16)}
+  .param-help{font-size:.65rem;color:var(--muted);line-height:1.4}
   #progress{display:none;flex-direction:column;gap:.8rem;padding:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
   .progress-line{display:flex;align-items:center;gap:.7rem;font-size:.8rem}
   .spinner{width:14px;height:14px;border:2px solid transparent;border-top-color:var(--accent1);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;}
@@ -72,12 +78,24 @@
   .metric-time{font-size:.65rem;color:var(--muted);background:rgba(255,255,255,.04);padding:.15rem .4rem;border-radius:3px;}
   .metric-row{display:flex;justify-content:space-between;align-items:baseline}
   .metric-name{font-size:.7rem;color:var(--muted)}
+  .metric-link{font-size:.7rem;color:var(--muted);text-decoration:none;border-bottom:1px dashed rgba(255,255,255,.2);transition:color .2s,border-color .2s}
+  .metric-link:hover{color:var(--accent1);border-color:var(--accent1)}
   .metric-value{font-size:1rem;font-weight:700}
   .metric-bar-track{height:3px;background:var(--border);border-radius:2px;margin-top:.3rem;overflow:hidden;}
   .metric-bar-fill{height:100%;border-radius:2px;transition:width .8s cubic-bezier(.4,0,.2,1)}
   .chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.5rem;}
   .chart-title{font-size:.75rem;color:var(--muted);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.1em}
   canvas.chart{width:100%!important;height:220px!important}
+  .histogram-stack{display:grid;grid-template-columns:1fr;gap:1rem}
+  .hist-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem;display:flex;flex-direction:column;gap:.8rem}
+  .hist-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+  .hist-controls{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+  .hist-btn{border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);font-family:'Space Mono',monospace;font-size:.68rem;font-weight:700;border-radius:4px;padding:.25rem .55rem;cursor:pointer;transition:background .2s,border-color .2s,color .2s}
+  .hist-btn.active[data-ch="r"]{border-color:#ff5a5f;color:#ff5a5f;background:rgba(255,90,95,.10)}
+  .hist-btn.active[data-ch="g"]{border-color:#00ffc8;color:#00ffc8;background:rgba(0,255,200,.10)}
+  .hist-btn.active[data-ch="b"]{border-color:#5b8cff;color:#5b8cff;background:rgba(91,140,255,.10)}
+  .hist-help{font-size:.62rem;color:var(--muted)}
+  .hist-canvas{width:100%!important;height:300px!important;cursor:crosshair}
   .perf-row{display:flex;gap:.8rem;flex-wrap:wrap;}
   .perf-bar-wrap{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;display:flex;flex-direction:column;gap:.5rem;}
   .perf-lang-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
@@ -87,6 +105,15 @@
   .perf-rel{font-size:.65rem;color:var(--muted)}
   .log-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;font-size:.72rem;color:var(--muted);max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:'Space Mono',monospace;}
   .log-box .log-java{color:var(--accent1)} .log-box .log-c{color:var(--accent2)} .log-box .log-cs{color:var(--accent3)}
+  .info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem}
+  .info-card{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015));border:1px solid var(--border);border-radius:8px;padding:1.15rem;display:flex;flex-direction:column;gap:.55rem;line-height:1.55}
+  .info-card h3{font-family:'Syne',sans-serif;font-size:1rem;color:var(--text)}
+  .info-card p,.info-card li{font-size:.72rem;color:var(--muted)}
+  .info-card ul,.info-card ol{padding-left:1.1rem;display:grid;gap:.35rem}
+  .info-card strong{color:var(--text)}
+  .back-link{display:block;width:max-content;margin:.9rem auto 0;font-size:.68rem;color:var(--accent1);text-decoration:none;border:1px solid rgba(0,255,200,.25);border-radius:4px;padding:.25rem .5rem;background:rgba(0,255,200,.06);transition:background .2s,border-color .2s}
+  .back-link:hover{background:rgba(0,255,200,.12);border-color:var(--accent1)}
+  .info-note{background:rgba(0,255,200,.06);border:1px solid rgba(0,255,200,.18);border-radius:8px;padding:1rem;color:var(--muted);font-size:.74rem;line-height:1.6}
   .fade-in{animation:fadeIn .4s ease forwards}
   @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .stagger>*{opacity:0;animation:fadeIn .4s ease forwards}
@@ -109,12 +136,12 @@
 <main>
   <!-- Upload -->
   <div class="upload-zone" id="drop-zone">
-    <input type="file" id="file-input" accept="image/*">
+    <input type="file" id="file-input" accept=".png,.bmp,.tif,.tiff,image/png,image/bmp,image/tiff">
     <div style="font-size:2.5rem;opacity:.4">🖼️</div>
     <div class="upload-text">
       Arrastra una imagen aquí o <span id="pick-btn">haz clic para seleccionar</span>
     </div>
-    <div class="upload-text" style="font-size:.7rem">PNG · JPG · BMP</div>
+    <div class="upload-text" style="font-size:.7rem">PNG · BMP · TIFF</div>
   </div>
 
   <!-- Preview -->
@@ -126,22 +153,31 @@
   </div>
 
   <div class="control-panel">
-    <div class="control-title">Modo de sesión criptográfica</div>
-    <div class="session-modes">
-      <label class="session-option">
-        <input type="radio" name="session-mode" value="independent" checked>
-        <div class="session-copy">
-          <strong>Sesión independiente</strong>
-          <span>Cada implementación genera su propia sesión X25519/HKDF.</span>
+    <div class="param-grid">
+      <div>
+        <div class="control-title" style="margin-bottom:.65rem">Modo de sesión criptográfica</div>
+        <div class="session-modes">
+          <label class="session-option">
+            <input type="radio" name="session-mode" value="independent" checked>
+            <div class="session-copy">
+              <strong>Sesión independiente</strong>
+              <span>Cada implementación genera su propia sesión X25519/HKDF.</span>
+            </div>
+          </label>
+          <label class="session-option">
+            <input type="radio" name="session-mode" value="shared">
+            <div class="session-copy">
+              <strong>Sesión compartida</strong>
+              <span>El backend genera un único `Z` y `salt` y los reutiliza en Java, C y C#.</span>
+            </div>
+          </label>
         </div>
-      </label>
-      <label class="session-option">
-        <input type="radio" name="session-mode" value="shared">
-        <div class="session-copy">
-          <strong>Sesión compartida</strong>
-          <span>El backend genera un único `Z` y `salt` y los reutiliza en Java, C y C#.</span>
-        </div>
-      </label>
+      </div>
+      <div class="param-field">
+        <label for="rounds-input">Rondas / generaciones</label>
+        <input id="rounds-input" type="number" min="1" max="10000" step="1" value="10">
+        <div class="param-help">Cada ronda equivale a una permutación y una generación del autómata.</div>
+      </div>
     </div>
   </div>
 
@@ -164,26 +200,76 @@
     <div class="section-title" style="margin-top:2rem">Rendimiento</div>
     <div class="perf-row stagger" id="perf-row"></div>
 
-    <div class="section-title" style="margin-top:2rem">Métricas criptográficas (gen final)</div>
+    <div class="section-title" id="metricas-criptograficas" style="margin-top:2rem">Métricas criptográficas (gen final)</div>
     <div class="metrics-grid stagger" id="metrics-cards"></div>
 
-    <div class="section-title" style="margin-top:2rem">Entropía comparada — 3 lenguajes</div>
-    <div class="chart-wrap">
-      <div class="chart-title">bits/símbolo por generación</div>
-      <canvas class="chart" id="compare-chart"></canvas>
-    </div>
-
-    <div class="section-title" style="margin-top:2rem">Chi-cuadrado (<span id="chi-source">—</span>)</div>
-    <div class="chart-wrap">
-      <div class="chart-title">χ² — menor = distribución más uniforme</div>
-      <canvas class="chart" id="chi-chart"></canvas>
-    </div>
+    <div class="section-title" style="margin-top:2rem">Histogramas RGB</div>
+    <div class="histogram-stack stagger" id="histogram-grid"></div>
 
     <div class="section-title" style="margin-top:2rem">Tabla de comparación</div>
     <div id="comparison-table"></div>
 
     <div class="section-title" style="margin-top:2rem">Log</div>
     <div class="log-box" id="log-box"></div>
+
+    <div class="section-title" style="margin-top:2rem">Guía rápida del sistema</div>
+    <div class="info-grid">
+      <div class="info-card" id="desc-entropia">
+        <h3>Entropía de Shannon</h3>
+        <p>Mide qué tan uniforme o impredecible es la distribución de valores de la imagen cifrada.</p>
+        <p>En imágenes RGB de 8 bits, un valor cercano a <strong>8 bits</strong> indica que los valores aparecen con frecuencia parecida.</p>
+      </div>
+      <div class="info-card" id="desc-chi">
+        <h3>Chi-cuadrada</h3>
+        <p>Compara el histograma observado contra una distribución ideal uniforme.</p>
+        <p>Valores más bajos suelen indicar menos sesgo en las intensidades; valores altos sugieren concentración en ciertos tonos.</p>
+      </div>
+      <div class="info-card" id="desc-correlacion">
+        <h3>Correlación</h3>
+        <p>Evalúa la relación entre píxeles vecinos. En una imagen natural suele ser alta porque los píxeles cercanos se parecen.</p>
+        <p>En una imagen cifrada se busca que esté cerca de <strong>0</strong>, indicando baja dependencia espacial.</p>
+      </div>
+      <div class="info-card" id="desc-histograma">
+        <h3>Histograma RGB</h3>
+        <p>Muestra cuántas veces aparece cada valor de intensidad de 0 a 255 en los canales rojo, verde y azul.</p>
+        <p>Sirve para detectar picos, saturaciones o tendencias visibles en la imagen cifrada.</p>
+      </div>
+    </div>
+    <a class="back-link" href="#metricas-criptograficas">Volver a métricas</a>
+
+    <div class="section-title" style="margin-top:2rem">Cómo funciona el cifrado</div>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>1. Imagen de entrada</h3>
+        <p>La imagen se convierte a datos RGB crudos. El cifrado trabaja sobre los bytes de píxeles, no sobre el archivo comprimido directamente.</p>
+      </div>
+      <div class="info-card">
+        <h3>2. Llaves de sesión</h3>
+        <p>Se obtiene un secreto base de 32 bytes y un salt de 32 bytes. Con HKDF-SHA256 se derivan llaves para permutación, autómata y sesión.</p>
+        <p>La interfaz permite usar una sesión independiente por lenguaje o una sesión compartida para los tres.</p>
+      </div>
+      <div class="info-card">
+        <h3>3. Permutación</h3>
+        <p>En cada ronda se elige una de 128 permutaciones. Esta reorganiza espacialmente los píxeles mediante desplazamientos por filas y columnas.</p>
+      </div>
+      <div class="info-card">
+        <h3>4. Autómata de Moore</h3>
+        <p>Después de permutar, se aplica una generación del autómata celular con vecindad de Moore y aritmética módulo 257.</p>
+        <p>Cada ronda usa coeficientes derivados de la llave, por lo que la evolución cambia ronda a ronda.</p>
+      </div>
+      <div class="info-card">
+        <h3>5. Rondas</h3>
+        <p>Una ronda equivale a una permutación más una generación del autómata. Aumentar rondas incrementa la difusión, pero también el tiempo de cómputo.</p>
+      </div>
+      <div class="info-card">
+        <h3>6. Descifrado</h3>
+        <p>El sistema guarda dos estados finales y un archivo de sesión. Con esos datos se revierte el autómata y se recupera la imagen original.</p>
+      </div>
+    </div>
+
+    <div class="info-note">
+      Las métricas ayudan a observar comportamiento estadístico, pero no sustituyen un análisis criptográfico formal. En esta interfaz se usan como apoyo para comparar difusión, uniformidad y recuperación entre las implementaciones en C, Java y C#.
+    </div>
   </div>
 </main>
 <footer style="text-align:center;padding:2rem;font-size:.7rem;color:var(--muted);border-top:1px solid var(--border);margin-top:2rem">
@@ -196,18 +282,15 @@
 // ── State ──────────────────────────────────────────────────────────────
 let uploadedFile = null;
 
-// ── Upload — fix doble-subida: NO abrir picker al click en drop-zone,
-//   solo al click en el texto "<span id=pick-btn>" ───────────────────
+// ── Upload ────────────────────────────────────────────────────────────
 const dropZone  = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 const pickBtn   = document.getElementById('pick-btn');
 
-// Solo el botón abre el picker
 pickBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
 
-// El drop-zone solo reacciona a drag & drop, no a click
 dropZone.addEventListener('click', e => {
-  // Si el click viene del propio span ya fue manejado arriba; ignorar el resto
+  if (e.target !== fileInput && e.target !== pickBtn) fileInput.click();
 });
 dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
@@ -270,16 +353,26 @@ async function runComparison() {
   const fd = new FormData();
   fd.append('image', uploadedFile);
   const sessionMode = document.querySelector('input[name="session-mode"]:checked')?.value || 'independent';
+  const roundsInput = document.getElementById('rounds-input');
+  const rounds = Math.max(1, Math.min(10000, parseInt(roundsInput?.value || '10', 10) || 10));
+  if (roundsInput) roundsInput.value = String(rounds);
   fd.append('session_mode', sessionMode);
+  fd.append('steps', String(rounds));
 
   let data;
   try {
     const resp = await fetch('http://localhost:5000/api/run', { method:'POST', body:fd });
-    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    if (!resp.ok) {
+      const errData = await resp.json().catch(()=>({error:'HTTP '+resp.status}));
+      throw new Error(errData.error || ('HTTP '+resp.status));
+    }
     data = await resp.json();
   } catch(err) {
-    console.warn('Backend no disponible — modo demo', err);
-    data = simulateData();
+    console.warn('No se pudo ejecutar el backend', err);
+    alert(err.message || 'No se pudo ejecutar el backend.');
+    btn.disabled = false;
+    prog.style.display = 'none';
+    return;
   }
 
   const results = data.results || [];
@@ -388,21 +481,41 @@ function renderResults(data) {
         <span class="metric-time">${r.elapsed_s?r.elapsed_s.toFixed(4)+'s':'N/A'}</span>
       </div>
       ${r.error?`<div style="font-size:.7rem;color:#f87171;line-height:1.5">${r.error.substring(0,120)}</div>`
-        :`<div class="metric-row"><span class="metric-name">Entropía</span><span class="metric-value" style="color:${m.color}">${e.toFixed(4)} bits</span></div>
+        :`<div class="metric-row"><a class="metric-link" href="#desc-entropia">Entropía</a><span class="metric-value" style="color:${m.color}">${e.toFixed(4)} bits</span></div>
          <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${ePct}%;background:${m.color}"></div></div>
-         <div class="metric-row"><span class="metric-name">Chi²</span><span class="metric-value">${chi.toFixed(1)}</span></div>
-         <div class="metric-row"><span class="metric-name">Correlación</span><span class="metric-value">${corr.toFixed(4)}</span></div>
+         <div class="metric-row"><a class="metric-link" href="#desc-chi">Chi²</a><span class="metric-value">${chi.toFixed(1)}</span></div>
+         <div class="metric-row"><a class="metric-link" href="#desc-correlacion">Correlación</a><span class="metric-value">${corr.toFixed(4)}</span></div>
          <div class="metric-row"><span class="metric-name">Recuperación</span><span class="${r.recovery==='OK'?'recovery-ok':'recovery-fail'}">${r.recovery||'—'}</span></div>`}
     </div>`;
   }).join('');
 
-  // ── Charts ───────────────────────────────────────────────────────
-  const valid = [jR,cR,csR].filter(r=>!r.error&&(r.metrics||[]).length>1);
-  drawMultiChart('compare-chart', valid, 'entropy');
-  const rich = valid.reduce((a,b)=>(b.metrics||[]).length>(a.metrics||[]).length?b:a, valid[0]||{});
-  const src = document.getElementById('chi-source'); if(src) src.textContent=rich.lang||'—';
-  if ((rich.metrics||[]).length>1)
-    drawLineChart('chi-chart',(rich.metrics||[]).map(m=>m.gen),(rich.metrics||[]).map(m=>m.chi),'Chi²',(LM[rich.lang]||{}).color||'var(--accent2)',null);
+  // ── Histograms ──────────────────────────────────────────────────
+  const histCards = [
+    {label:'Original', color:'var(--muted)', hist:data.original_histogram},
+    {label:'Java cifrada', color:LM.Java.color, hist:jR.histogram, error:jR.error},
+    {label:'C cifrada', color:LM.C.color, hist:cR.histogram, error:cR.error},
+    {label:'C# cifrada', color:LM['C#'].color, hist:csR.histogram, error:csR.error},
+  ];
+  document.getElementById('histogram-grid').innerHTML = histCards.map((item, idx) => `
+    <div class="hist-card">
+      <div class="hist-head">
+        <div class="chart-title" style="color:${item.color};margin-bottom:0">${item.label}</div>
+        ${item.error ? '' : `<div class="hist-controls" data-hist="hist-${idx}">
+          <button class="hist-btn active" data-ch="r" type="button">R</button>
+          <button class="hist-btn active" data-ch="g" type="button">G</button>
+          <button class="hist-btn active" data-ch="b" type="button">B</button>
+          <button class="hist-btn" data-ch="reset" type="button">Reset</button>
+        </div>`}
+      </div>
+      ${item.error ? `<div style="font-size:.7rem;color:#f87171">${item.error.substring(0,100)}</div>` : `
+        <canvas class="hist-canvas" id="hist-${idx}"></canvas>
+        <div class="hist-help">Rueda: zoom · Arrastra: desplazar · Doble clic: reset · Mouse: valor del bin</div>
+      `}
+    </div>
+  `).join('');
+  histCards.forEach((item, idx) => {
+    if (!item.error && item.hist) drawHistogram(`hist-${idx}`, item.hist);
+  });
 
   // ── Table ────────────────────────────────────────────────────────
   const last=r=>(r.metrics||[])[(r.metrics||[]).length-1]||{};
@@ -444,53 +557,143 @@ function renderResults(data) {
   document.getElementById('log-box').innerHTML = log||'(sin salida)';
 }
 
-// ── Charts ────────────────────────────────────────────────────────────
-function drawMultiChart(id, langResults, field) {
-  const canvas=document.getElementById(id); if(!canvas||!langResults.length) return;
-  const dpr=window.devicePixelRatio||1;
-  canvas.width=canvas.offsetWidth*dpr; canvas.height=220*dpr;
-  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
-  const W=canvas.offsetWidth,H=220,pad={t:10,r:80,b:30,l:55};
-  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
-  const mn=field==='entropy'?0:Math.min(...langResults.flatMap(r=>(r.metrics||[]).map(m=>m[field])))*0.9;
-  const mx=field==='entropy'?8:Math.max(...langResults.flatMap(r=>(r.metrics||[]).map(m=>m[field])))*1.05;
-  const ys=v=>pad.t+ph-((v-mn)/(mx-mn||1))*ph;
-  // grid
-  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
-  for(let i=0;i<=4;i++){const y=pad.t+ph*(i/4);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.25)';ctx.font="10px 'Space Mono'";ctx.fillText((mx-(mx-mn)*(i/4)).toFixed(field==='entropy'?1:0),2,y+4);}
-  langResults.forEach(r=>{
-    const m=LM[r.lang]||{}, mets=r.metrics||[];
-    if(!mets.length) return;
-    const xs=i=>pad.l+(i/(mets.length-1||1))*pw;
-    ctx.beginPath();ctx.strokeStyle=m.color||'#fff';ctx.lineWidth=2;ctx.lineJoin='round';
-    mets.forEach((me,i)=>i===0?ctx.moveTo(xs(i),ys(me[field])):ctx.lineTo(xs(i),ys(me[field])));
-    ctx.stroke();
-    const last=mets[mets.length-1];
-    if(last){ctx.fillStyle=m.color||'#fff';ctx.font="bold 10px 'Space Mono'";ctx.fillText(r.lang,xs(mets.length-1)+4,ys(last[field])+4);}
-  });
+const histogramStates = {};
+
+function drawHistogram(id,hist){
+  const canvas=document.getElementById(id); if(!canvas||!hist) return;
+  histogramStates[id]={
+    hist,
+    min:0,
+    max:255,
+    hover:null,
+    drag:false,
+    lastX:0,
+    channels:{r:true,g:true,b:true}
+  };
+  attachHistogramEvents(id);
+  renderHistogram(id);
 }
 
-function drawLineChart(id,labels,values,label,color,yRange){
-  const canvas=document.getElementById(id); if(!canvas||!values.length) return;
+function attachHistogramEvents(id){
+  const canvas=document.getElementById(id); if(!canvas||canvas.dataset.ready) return;
+  canvas.dataset.ready='1';
+  const relX=e=>e.clientX-canvas.getBoundingClientRect().left;
+  canvas.addEventListener('mousemove',e=>{
+    const st=histogramStates[id]; if(!st) return;
+    const x=relX(e), W=canvas.offsetWidth, pad={l:48,r:16};
+    if(st.drag){
+      const span=st.max-st.min;
+      const dx=x-st.lastX;
+      const shift=-(dx/(W-pad.l-pad.r))*span;
+      setHistogramRange(st,st.min+shift,st.max+shift);
+      st.lastX=x;
+    }
+    st.hover=x;
+    renderHistogram(id);
+  });
+  canvas.addEventListener('mouseleave',()=>{const st=histogramStates[id]; if(st){st.hover=null;st.drag=false;renderHistogram(id);}});
+  canvas.addEventListener('mousedown',e=>{const st=histogramStates[id]; if(st){st.drag=true;st.lastX=relX(e);}});
+  window.addEventListener('mouseup',()=>{const st=histogramStates[id]; if(st) st.drag=false;});
+  canvas.addEventListener('dblclick',()=>{const st=histogramStates[id]; if(st){st.min=0;st.max=255;renderHistogram(id);}});
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const st=histogramStates[id]; if(!st) return;
+    const W=canvas.offsetWidth,pad={l:48,r:16},plotW=W-pad.l-pad.r;
+    const x=Math.max(0,Math.min(plotW,relX(e)-pad.l));
+    const center=st.min+(x/plotW)*(st.max-st.min);
+    const factor=e.deltaY<0?.78:1.28;
+    const newSpan=Math.max(8,Math.min(255,(st.max-st.min)*factor));
+    const leftRatio=(center-st.min)/(st.max-st.min||1);
+    setHistogramRange(st,center-newSpan*leftRatio,center+newSpan*(1-leftRatio));
+    renderHistogram(id);
+  },{passive:false});
+  const controls=document.querySelector(`.hist-controls[data-hist="${id}"]`);
+  if(controls){
+    controls.addEventListener('click',e=>{
+      const btn=e.target.closest('.hist-btn'); if(!btn) return;
+      const st=histogramStates[id]; if(!st) return;
+      const ch=btn.dataset.ch;
+      if(ch==='reset'){
+        st.min=0;st.max=255;st.channels={r:true,g:true,b:true};
+        controls.querySelectorAll('.hist-btn[data-ch="r"],.hist-btn[data-ch="g"],.hist-btn[data-ch="b"]').forEach(b=>b.classList.add('active'));
+      }else if(st.channels[ch]!==undefined){
+        st.channels[ch]=!st.channels[ch];
+        btn.classList.toggle('active',st.channels[ch]);
+      }
+      renderHistogram(id);
+    });
+  }
+}
+
+function setHistogramRange(st,min,max){
+  let span=max-min;
+  if(span>=255){st.min=0;st.max=255;return;}
+  if(min<0){max-=min;min=0;}
+  if(max>255){min-=max-255;max=255;}
+  st.min=Math.max(0,min);
+  st.max=Math.min(255,max);
+}
+
+function renderHistogram(id){
+  const canvas=document.getElementById(id),st=histogramStates[id]; if(!canvas||!st) return;
   const dpr=window.devicePixelRatio||1;
-  canvas.width=canvas.offsetWidth*dpr; canvas.height=220*dpr;
+  const W=canvas.offsetWidth,H=300,pad={t:18,r:16,b:32,l:48};
+  canvas.width=W*dpr; canvas.height=H*dpr;
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
-  const W=canvas.offsetWidth,H=220,pad={t:10,r:20,b:30,l:55};
   const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
-  const mn=yRange?yRange[0]:Math.min(...values)*.95;
-  const mx=yRange?yRange[1]:Math.max(...values)*1.05;
-  const ys=v=>pad.t+ph-((v-mn)/(mx-mn||1))*ph;
-  const xs=i=>pad.l+(i/(labels.length-1||1))*pw;
-  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
-  for(let i=0;i<=4;i++){const y=pad.t+ph*(i/4);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.25)';ctx.font="10px 'Space Mono'";ctx.fillText((mx-(mx-mn)*(i/4)).toFixed(2),2,y+4);}
-  ctx.beginPath();ctx.moveTo(xs(0),ys(values[0]));values.forEach((v,i)=>ctx.lineTo(xs(i),ys(v)));ctx.lineTo(xs(values.length-1),pad.t+ph);ctx.lineTo(pad.l,pad.t+ph);ctx.closePath();ctx.fillStyle='rgba(0,255,200,.05)';ctx.fill();
-  ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=2;ctx.lineJoin='round';values.forEach((v,i)=>i===0?ctx.moveTo(xs(i),ys(v)):ctx.lineTo(xs(i),ys(v)));ctx.stroke();
-  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font="9px 'Space Mono'";const step=Math.ceil(labels.length/6);labels.forEach((l,i)=>{if(i%step===0||i===labels.length-1)ctx.fillText('g'+l,xs(i)-5,H-8)});
+  const minBin=Math.max(0,Math.floor(st.min)),maxBin=Math.min(255,Math.ceil(st.max));
+  const active=Object.entries(st.channels).filter(([,v])=>v).map(([k])=>k);
+  const maxV=Math.max(1,...active.flatMap(ch=>(st.hist[ch]||[]).slice(minBin,maxBin+1)));
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+  for(let i=0;i<=5;i++){
+    const y=pad.t+ph*(i/5);
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.28)';ctx.font="9px 'Space Mono'";
+    ctx.fillText(Math.round(maxV-(maxV*i/5)).toString(),4,y+3);
+  }
+  const xForBin=bin=>pad.l+((bin-st.min)/(st.max-st.min))*pw;
+  const yForVal=v=>pad.t+ph-(v/maxV)*ph;
+  const drawChannel=(ch,color)=>{
+    if(!st.channels[ch]) return;
+    const arr=st.hist[ch]||[];
+    ctx.beginPath();
+    for(let bin=minBin;bin<=maxBin;bin++){
+      const x=xForBin(bin),y=yForVal(arr[bin]||0);
+      bin===minBin?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle=color;ctx.lineWidth=1.8;ctx.globalAlpha=.9;ctx.stroke();ctx.globalAlpha=1;
+  };
+  drawChannel('r','#ff5a5f');drawChannel('g','#00ffc8');drawChannel('b','#5b8cff');
+  ctx.fillStyle='rgba(255,255,255,.38)';ctx.font="10px 'Space Mono'";
+  ctx.fillText(Math.round(st.min).toString(),pad.l,H-10);
+  ctx.fillText(Math.round(st.max).toString(),pad.l+pw-24,H-10);
+  if(st.hover!==null){
+    const hx=Math.max(pad.l,Math.min(pad.l+pw,st.hover));
+    const bin=Math.max(0,Math.min(255,Math.round(st.min+((hx-pad.l)/pw)*(st.max-st.min))));
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.moveTo(hx,pad.t);ctx.lineTo(hx,pad.t+ph);ctx.stroke();
+    const parts=[];
+    if(st.channels.r) parts.push(`R:${st.hist.r[bin]||0}`);
+    if(st.channels.g) parts.push(`G:${st.hist.g[bin]||0}`);
+    if(st.channels.b) parts.push(`B:${st.hist.b[bin]||0}`);
+    const txt=`bin ${bin} · ${parts.join(' · ')}`;
+    ctx.font="11px 'Space Mono'";
+    const tw=ctx.measureText(txt).width+16;
+    const tx=Math.min(W-tw-8,Math.max(8,hx+10));
+    ctx.fillStyle='rgba(10,10,15,.92)';ctx.fillRect(tx,8,tw,24);
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.strokeRect(tx,8,tw,24);
+    ctx.fillStyle='rgba(255,255,255,.82)';ctx.fillText(txt,tx+8,24);
+  }
 }
 
 // ── Simulate demo data ────────────────────────────────────────────────
 function simulateData(){
   const steps=10;
+  const mkHist=()=>({
+    r:Array.from({length:256},(_,i)=>Math.round(80+Math.random()*120+60*Math.sin(i/17))),
+    g:Array.from({length:256},(_,i)=>Math.round(80+Math.random()*120+60*Math.sin(i/23))),
+    b:Array.from({length:256},(_,i)=>Math.round(80+Math.random()*120+60*Math.sin(i/31))),
+  });
   const mkM=(off)=>Array.from({length:steps+1},(_,i)=>({
     gen:i,
     entropy:Math.min(8,Math.max(0,3.5+(i/steps)*4.0+off+(Math.random()-.5)*.15)),
@@ -502,10 +705,10 @@ function simulateData(){
   oc.fillStyle='#336699';oc.fillRect(0,0,32,32);oc.fillStyle='#cc4422';oc.fillRect(32,0,32,32);
   oc.fillStyle='#22aa55';oc.fillRect(0,32,32,32);oc.fillStyle='#aa22cc';oc.fillRect(32,32,32,32);
   const origB64=origC.toDataURL('image/png').split(',')[1];
-  return {image_size:[64,64],steps,session_mode:'independent',original_img:origB64,results:[
-    {lang:'Java',elapsed_s:0.83,recovery:'OK',metrics:mkM(0),   cipher_img:noiseImg(),recovered_img:origB64},
-    {lang:'C',   elapsed_s:0.04,recovery:'OK',metrics:mkM(0.08),cipher_img:noiseImg(),recovered_img:origB64},
-    {lang:'C#',  elapsed_s:0.14,recovery:'OK',metrics:mkM(0.04),cipher_img:noiseImg(),recovered_img:origB64},
+  return {image_size:[64,64],steps,session_mode:'independent',original_img:origB64,original_histogram:mkHist(),results:[
+    {lang:'Java',elapsed_s:0.83,recovery:'OK',metrics:mkM(0),   histogram:mkHist(),cipher_img:noiseImg(),recovered_img:origB64},
+    {lang:'C',   elapsed_s:0.04,recovery:'OK',metrics:mkM(0.08),histogram:mkHist(),cipher_img:noiseImg(),recovered_img:origB64},
+    {lang:'C#',  elapsed_s:0.14,recovery:'OK',metrics:mkM(0.04),histogram:mkHist(),cipher_img:noiseImg(),recovered_img:origB64},
   ]};
 }
 

@@ -2,6 +2,7 @@
 bmp/
 
 # Archivos generados en ejecución
+v2/Resultados/
 cipher_*.ppm
 recovered_*.ppm
 *.log
@@ -48,3 +49,5 @@ ENV/
 .idea/
 .DS_Store
 Thumbs.db
+
+tesis.txt

@@ -10,7 +10,7 @@ internal static class Descifrado
         {
             if (args.Length != 9)
             {
-                Console.Error.WriteLine("Uso: Descifrado <x_r-1_u16.bin> <x_r_u16.bin> <out.png|bmp|raw> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
+                Console.Error.WriteLine("Uso: Descifrado <x_r-1_u16.bin> <x_r_u16.bin> <out.png|bmp|tif|tiff|raw> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
                 return 1;
             }
 

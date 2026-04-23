@@ -10,10 +10,10 @@ internal static class Cifrado
         {
             if (args.Length != 4 && args.Length != 7 && args.Length != 6 && args.Length != 9)
             {
-                Console.Error.WriteLine("Uso auto PNG/BMP: Cifrado <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas>");
-                Console.Error.WriteLine("Uso auto compartido: Cifrado <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas> <Z_hex_64> <salt_hex_64>");
-                Console.Error.WriteLine("Uso RAW: Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas>");
-                Console.Error.WriteLine("Uso RAW compartido: Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
+                Console.Error.WriteLine("Uso auto PNG/BMP/TIFF: Cifrado <in.png|in.bmp|in.tif|in.tiff> <out_cipher_u16.bin> <out_preview.png|bmp|tif|tiff|raw> <rondas>");
+                Console.Error.WriteLine("Uso auto compartido: Cifrado <in.png|in.bmp|in.tif|in.tiff> <out_cipher_u16.bin> <out_preview.png|bmp|tif|tiff|raw> <rondas> <Z_hex_64> <salt_hex_64>");
+                Console.Error.WriteLine("Uso RAW: Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp|tif|tiff> <ancho> <alto> <canales> <rondas>");
+                Console.Error.WriteLine("Uso RAW compartido: Cifrado <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp|tif|tiff> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
                 return 1;
             }
 

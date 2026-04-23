@@ -195,7 +195,8 @@ static int guardar_salida(
     if (!out_path || !img_u8) {
         return -1;
     }
-    if ((es_extension(out_path, ".png") || es_extension(out_path, ".bmp")) && canales == 3) {
+    if ((es_extension(out_path, ".png") || es_extension(out_path, ".bmp") ||
+         es_extension(out_path, ".tif") || es_extension(out_path, ".tiff")) && canales == 3) {
         char tmp_raw[128];
         rc = crear_tmp_path(tmp_raw, sizeof(tmp_raw));
         if (rc != 0) {
@@ -341,7 +342,7 @@ int main(int argc, char **argv) {
     int rc;
 
     if (argc != 10) {
-        fprintf(stderr, "Uso: %s <x_r-1_u16.bin> <x_r_u16.bin> <out.png|bmp|raw> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
+        fprintf(stderr, "Uso: %s <x_r-1_u16.bin> <x_r_u16.bin> <out.png|bmp|tif|tiff|raw> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
         fprintf(stderr, "Nota: Este esquema de 2o orden requiere dos estados cifrados finales (X_{R-1} y X_R).\n");
         return 1;
     }

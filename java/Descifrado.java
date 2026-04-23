@@ -4,7 +4,7 @@ import java.util.HexFormat;
 public final class Descifrado {
     public static void main(String[] args) throws Exception {
         if (args.length != 9) {
-            System.err.println("Uso: java Descifrado <x_r-1_u16.bin> <x_r_u16.bin> <out.png|bmp|raw> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
+            System.err.println("Uso: java Descifrado <x_r-1_u16.bin> <x_r_u16.bin> <out.png|bmp|tif|tiff|raw> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>");
             System.exit(1);
         }
 

@@ -73,7 +73,7 @@ final class Common {
 
     static LoadedImage loadImageOrRaw(String path, Integer width, Integer height, Integer channels) throws Exception {
         String ext = extension(path);
-        if (".png".equals(ext) || ".bmp".equals(ext)) {
+        if (".png".equals(ext) || ".bmp".equals(ext) || ".tif".equals(ext) || ".tiff".equals(ext)) {
             BufferedImage img = ImageIO.read(new File(path));
             if (img == null) throw new IOException("No se pudo leer imagen: " + path);
             int w = img.getWidth();
@@ -98,7 +98,7 @@ final class Common {
 
     static void savePreview(byte[] raw, int width, int height, int channels, String path) throws Exception {
         String ext = extension(path);
-        if ((".png".equals(ext) || ".bmp".equals(ext)) && channels == 3) {
+        if ((".png".equals(ext) || ".bmp".equals(ext) || ".tif".equals(ext) || ".tiff".equals(ext)) && channels == 3) {
             BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
             int p = 0;
             for (int y = 0; y < height; y++) {
@@ -109,7 +109,8 @@ final class Common {
                     img.setRGB(x, y, (r << 16) | (g << 8) | b);
                 }
             }
-            ImageIO.write(img, ext.substring(1), new File(path));
+            String format = (".tif".equals(ext) || ".tiff".equals(ext)) ? "TIFF" : ext.substring(1);
+            ImageIO.write(img, format, new File(path));
             return;
         }
         Files.write(Path.of(path), raw);

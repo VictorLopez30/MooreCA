@@ -520,7 +520,8 @@ static int cargar_entrada(
         char tmp_raw[128];
         size_t esperado;
 
-        if (!(es_extension(input_path, ".png") || es_extension(input_path, ".bmp"))) {
+        if (!(es_extension(input_path, ".png") || es_extension(input_path, ".bmp") ||
+              es_extension(input_path, ".tif") || es_extension(input_path, ".tiff"))) {
             return -2;
         }
 
@@ -579,7 +580,8 @@ static int guardar_preview(
         return -1;
     }
 
-    if (es_extension(out_path, ".png") || es_extension(out_path, ".bmp")) {
+    if (es_extension(out_path, ".png") || es_extension(out_path, ".bmp") ||
+        es_extension(out_path, ".tif") || es_extension(out_path, ".tiff")) {
         char tmp_raw[128];
         rc = crear_tmp_path(tmp_raw, sizeof(tmp_raw));
         if (rc != 0) {
@@ -653,10 +655,10 @@ int main(int argc, char **argv) {
             salt_ptr = salt_ext;
         }
     } else {
-        fprintf(stderr, "Uso auto PNG/BMP: %s <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas>\n", argv[0]);
-        fprintf(stderr, "Uso auto compartido: %s <in.png|in.bmp> <out_cipher_u16.bin> <out_preview.png|bmp|raw> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
-        fprintf(stderr, "Uso RAW:          %s <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas>\n", argv[0]);
-        fprintf(stderr, "Uso RAW compartido: %s <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
+        fprintf(stderr, "Uso auto PNG/BMP/TIFF: %s <in.png|in.bmp|in.tif|in.tiff> <out_cipher_u16.bin> <out_preview.png|bmp|tif|tiff|raw> <rondas>\n", argv[0]);
+        fprintf(stderr, "Uso auto compartido: %s <in.png|in.bmp|in.tif|in.tiff> <out_cipher_u16.bin> <out_preview.png|bmp|tif|tiff|raw> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
+        fprintf(stderr, "Uso RAW:          %s <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp|tif|tiff> <ancho> <alto> <canales> <rondas>\n", argv[0]);
+        fprintf(stderr, "Uso RAW compartido: %s <in.raw> <out_cipher_u16.bin> <out_preview.raw|png|bmp|tif|tiff> <ancho> <alto> <canales> <rondas> <Z_hex_64> <salt_hex_64>\n", argv[0]);
         return 1;
     }
 
