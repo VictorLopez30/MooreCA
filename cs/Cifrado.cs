@@ -80,9 +80,11 @@ internal static class Cifrado
                 var rk = Keys.DeriveRound(session, ctx, round);
                 Array.Copy(cur, curPerm, elems);
                 Permutations.ApplyU16(curPerm, input.Height, input.Width, input.Channels, rk.PermIndex);
-                var k1 = Automata.KernelFromMoore8(rk.Moore1);
-                var k2 = Automata.KernelFromMoore8(rk.Moore2);
-                Automata.StepU16(prev, curPerm, next, input.Height, input.Width, input.Channels, k1, k2, round, BoundaryHelper.FromRound(rk));
+                var kernelsByChannel = new int[6][,];
+                for (var ch = 0; ch < 3; ch++)
+                    for (var k = 0; k < 2; k++)
+                        kernelsByChannel[ch * 2 + k] = Automata.KernelFromMoore8(rk.MooreByChannel[ch][k]);
+                Automata.StepU16(prev, curPerm, next, input.Height, input.Width, input.Channels, kernelsByChannel, round, BoundaryHelper.FromRound(rk));
                 (prev, cur, next) = (cur, next, prev);
             }
 

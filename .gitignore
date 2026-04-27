@@ -8,6 +8,7 @@ recovered_*.ppm
 *.log
 *.tmp
 *.temp
+Experimentos
 
 # Python
 __pycache__/

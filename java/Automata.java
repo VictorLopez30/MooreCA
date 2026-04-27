@@ -14,8 +14,7 @@ final class Automata {
         int height,
         int width,
         int channels,
-        int[][] k1,
-        int[][] k2,
+        int[][][][] kernels,
         int round,
         Common.BoundaryConfig bc
     ) {
@@ -23,7 +22,7 @@ final class Automata {
             for (int x = 0; x < width; x++) {
                 for (int c = 0; c < channels; c++) {
                     long acc = 0;
-                    int[][] k = (((y + x + c + round) & 1) == 0) ? k1 : k2;
+                    int[][] k = kernels[c % 3][((y + x + c + round) & 1) == 0 ? 0 : 1];
                     for (int dy = -1; dy <= 1; dy++) {
                         for (int dx = -1; dx <= 1; dx++) {
                             int ny = mapY(y + dy, height, bc);

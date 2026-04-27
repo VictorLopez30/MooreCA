@@ -8,6 +8,8 @@ extern "C" {
 #endif
 
 #define AUTOMATA_MOD_BASE 257u
+#define AUTOMATA_KERNEL_CHANNELS 3u
+#define AUTOMATA_KERNEL_VARIANTS 2u
 
 typedef enum {
     BOUNDARY_PERIODIC = 0,
@@ -27,7 +29,7 @@ void automata_kernel_from_moore8(const uint16_t coef[8], int32_t kernel_out[3][3
 
 /* Un paso de CA de segundo orden:
  * next = conv(cur_permuted, kernel_selector) - prev (mod 257).
- * selector de kernel: patron ajedrez por canal/ronda para usar dos conjuntos. */
+ * Para cada canal RGB hay 2 kernels; el selector alterna entre ellos por posicion/ronda. */
 int automata_step_u16(
     const uint16_t *prev_state,
     const uint16_t *cur_permuted,
@@ -35,8 +37,7 @@ int automata_step_u16(
     uint32_t alto,
     uint32_t ancho,
     uint16_t canales,
-    int32_t kernel1[3][3],
-    int32_t kernel2[3][3],
+    int32_t kernels[AUTOMATA_KERNEL_CHANNELS][AUTOMATA_KERNEL_VARIANTS][3][3],
     uint32_t round_idx,
     boundary_config_t bc
 );

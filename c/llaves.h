@@ -40,8 +40,7 @@ typedef struct {
     uint8_t kperm[LLAVE_BYTES];
     uint8_t kkern[LLAVE_BYTES];
     uint8_t perm_index;
-    uint16_t coef_moore_1[8];
-    uint16_t coef_moore_2[8];
+    uint16_t coef_moore[3][2][8];
 } llave_ronda_t;
 
 void x25519_clamp_private(uint8_t sk[X25519_KEY_BYTES]);

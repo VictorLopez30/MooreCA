@@ -43,9 +43,11 @@ internal static class Descifrado
                 var rk = Keys.DeriveRound(session, ctx, (uint)t);
                 Array.Copy(curState, curPerm, elems);
                 Permutations.ApplyU16(curPerm, height, width, channels, rk.PermIndex);
-                var k1 = Automata.KernelFromMoore8(rk.Moore1);
-                var k2 = Automata.KernelFromMoore8(rk.Moore2);
-                Automata.StepU16(nextState, curPerm, prevRec, height, width, channels, k1, k2, (uint)t, BoundaryHelper.FromRound(rk));
+                var kernelsByChannel = new int[6][,];
+                for (var ch = 0; ch < 3; ch++)
+                    for (var k = 0; k < 2; k++)
+                        kernelsByChannel[ch * 2 + k] = Automata.KernelFromMoore8(rk.MooreByChannel[ch][k]);
+                Automata.StepU16(nextState, curPerm, prevRec, height, width, channels, kernelsByChannel, (uint)t, BoundaryHelper.FromRound(rk));
                 (nextState, curState, prevRec) = (curState, prevRec, nextState);
             }
 

@@ -362,6 +362,10 @@ static int derivar_coeficientes_moore_set(
     return 0;
 }
 
+static uint8_t moore_domain_tag(uint32_t channel_idx, uint32_t kernel_idx) {
+    return (uint8_t)(1u + channel_idx * 2u + kernel_idx);
+}
+
 int llaves_derivar_ronda(
     const llave_sesion_t *ses,
     const rca_ctx_t *ctx,
@@ -383,11 +387,12 @@ int llaves_derivar_ronda(
     if (calcular_indice_permutacion(out->kperm, &out->perm_index) != 0) {
         return -4;
     }
-    if (derivar_coeficientes_moore_set(out->kkern, 0x01u, out->coef_moore_1) != 0) {
-        return -5;
-    }
-    if (derivar_coeficientes_moore_set(out->kkern, 0x02u, out->coef_moore_2) != 0) {
-        return -5;
+    for (uint32_t ch = 0; ch < 3u; ++ch) {
+        for (uint32_t k = 0; k < 2u; ++k) {
+            if (derivar_coeficientes_moore_set(out->kkern, moore_domain_tag(ch, k), out->coef_moore[ch][k]) != 0) {
+                return -5;
+            }
+        }
     }
 
     return 0;
@@ -496,16 +501,15 @@ int main(void) {
     print_hex("Kkern_0", ronda0.kkern, 32);
     print_hex("nonce96_drbg", nonce96, 12);
     printf("idx_perm(0): %u\n", (unsigned)ronda0.perm_index);
-    printf("coef_moore_1(0):");
-    for (i = 0; i < 8; ++i) {
-        printf(" %u", (unsigned)ronda0.coef_moore_1[i]);
+    for (int ch = 0; ch < 3; ++ch) {
+        for (int k = 0; k < 2; ++k) {
+            printf("coef_moore_ch%d_k%d(0):", ch, k);
+            for (i = 0; i < 8; ++i) {
+                printf(" %u", (unsigned)ronda0.coef_moore[ch][k][i]);
+            }
+            printf("\n");
+        }
     }
-    printf("\n");
-    printf("coef_moore_2(0):");
-    for (i = 0; i < 8; ++i) {
-        printf(" %u", (unsigned)ronda0.coef_moore_2[i]);
-    }
-    printf("\n");
 
     return 0;
 }

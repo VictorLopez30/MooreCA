@@ -37,9 +37,13 @@ public final class Descifrado {
             var rk = Llaves.deriveRound(session, ctx, t);
             System.arraycopy(curState, 0, curPerm, 0, elems);
             Permutaciones.applyU16(curPerm, height, width, channels, rk.permIndex());
-            int[][] k1 = Automata.kernelFromMoore8(rk.moore1());
-            int[][] k2 = Automata.kernelFromMoore8(rk.moore2());
-            Automata.stepU16(nextState, curPerm, prevRec, height, width, channels, k1, k2, t, Llaves.boundaryFromRound(rk));
+            int[][][][] kernels = new int[3][2][][];
+            for (int ch = 0; ch < 3; ch++) {
+                for (int k = 0; k < 2; k++) {
+                    kernels[ch][k] = Automata.kernelFromMoore8(rk.mooreByChannel()[ch][k]);
+                }
+            }
+            Automata.stepU16(nextState, curPerm, prevRec, height, width, channels, kernels, t, Llaves.boundaryFromRound(rk));
             short[] tmp = nextState; nextState = curState; curState = prevRec; prevRec = tmp;
         }
 

@@ -58,9 +58,13 @@ public final class Cifrado {
             var rk = Llaves.deriveRound(session, ctx, round);
             System.arraycopy(cur, 0, curPerm, 0, elems);
             Permutaciones.applyU16(curPerm, input.height(), input.width(), input.channels(), rk.permIndex());
-            int[][] k1 = Automata.kernelFromMoore8(rk.moore1());
-            int[][] k2 = Automata.kernelFromMoore8(rk.moore2());
-            Automata.stepU16(prev, curPerm, next, input.height(), input.width(), input.channels(), k1, k2, round, Llaves.boundaryFromRound(rk));
+            int[][][][] kernels = new int[3][2][][];
+            for (int ch = 0; ch < 3; ch++) {
+                for (int k = 0; k < 2; k++) {
+                    kernels[ch][k] = Automata.kernelFromMoore8(rk.mooreByChannel()[ch][k]);
+                }
+            }
+            Automata.stepU16(prev, curPerm, next, input.height(), input.width(), input.channels(), kernels, round, Llaves.boundaryFromRound(rk));
             short[] tmp = prev; prev = cur; cur = next; next = tmp;
         }
 

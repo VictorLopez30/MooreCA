@@ -268,8 +268,9 @@ static int descifrar_imagen(
 
     for (t = (int)rondas - 1; t >= 0; --t) {
         llave_ronda_t rk;
-        int32_t k1[3][3], k2[3][3];
+        int32_t kernels[3][2][3][3];
         boundary_config_t bc;
+        uint32_t ch, kv;
 
         rc = llaves_derivar_ronda(&ses, &ctx, (uint32_t)t, &rk);
         if (rc != 0) {
@@ -284,13 +285,16 @@ static int descifrar_imagen(
             goto cleanup;
         }
 
-        automata_kernel_from_moore8(rk.coef_moore_1, k1);
-        automata_kernel_from_moore8(rk.coef_moore_2, k2);
+        for (ch = 0; ch < 3u; ++ch) {
+            for (kv = 0; kv < 2u; ++kv) {
+                automata_kernel_from_moore8(rk.coef_moore[ch][kv], kernels[ch][kv]);
+            }
+        }
         boundary_from_round(&rk, &bc);
 
         /* Inversa de la regla de segundo orden:
          * next = conv(cur_perm) - prev  =>  prev = conv(cur_perm) - next */
-        rc = automata_step_u16(next_state, cur_perm, prev_rec, alto, ancho, canales, k1, k2, (uint32_t)t, bc);
+        rc = automata_step_u16(next_state, cur_perm, prev_rec, alto, ancho, canales, kernels, (uint32_t)t, bc);
         if (rc != 0) {
             rc = -6;
             goto cleanup;

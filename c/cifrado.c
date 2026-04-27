@@ -450,8 +450,9 @@ static int cifrar_imagen(
 
     for (i = 0; i < (uint32_t)rondas; ++i) {
         llave_ronda_t rk;
-        int32_t k1[3][3], k2[3][3];
+        int32_t kernels[3][2][3][3];
         boundary_config_t bc;
+        uint32_t ch, kv;
 
         rc = llaves_derivar_ronda(&ses, &ctx, i, &rk);
         if (rc != 0) {
@@ -466,11 +467,14 @@ static int cifrar_imagen(
             goto cleanup;
         }
 
-        automata_kernel_from_moore8(rk.coef_moore_1, k1);
-        automata_kernel_from_moore8(rk.coef_moore_2, k2);
+        for (ch = 0; ch < 3u; ++ch) {
+            for (kv = 0; kv < 2u; ++kv) {
+                automata_kernel_from_moore8(rk.coef_moore[ch][kv], kernels[ch][kv]);
+            }
+        }
         boundary_from_round(&rk, &bc);
 
-        rc = automata_step_u16(prev, cur_perm, next, alto, ancho, canales, k1, k2, i, bc);
+        rc = automata_step_u16(prev, cur_perm, next, alto, ancho, canales, kernels, i, bc);
         if (rc != 0) {
             rc = -23;
             goto cleanup;

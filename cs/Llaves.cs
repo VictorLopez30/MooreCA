@@ -25,8 +25,12 @@ public sealed class RoundKeys
     public byte[] KPerm { get; init; } = new byte[CryptoConsts.KeyBytes];
     public byte[] KKernel { get; init; } = new byte[CryptoConsts.KeyBytes];
     public byte PermIndex { get; init; }
-    public ushort[] Moore1 { get; init; } = new ushort[8];
-    public ushort[] Moore2 { get; init; } = new ushort[8];
+    public ushort[][][] MooreByChannel { get; init; } =
+    [
+        [new ushort[8], new ushort[8]],
+        [new ushort[8], new ushort[8]],
+        [new ushort[8], new ushort[8]]
+    ];
 }
 
 public static class Keys
@@ -82,13 +86,19 @@ public static class Keys
     {
         var kPerm = HkdfExpand(session.Prk, BuildRoundInfo("RCA|perm|v2|round=", roundIndex, ctx), 32);
         var kKernel = HkdfExpand(session.Prk, BuildRoundInfo("RCA|kernel|v2|round=", roundIndex, ctx), 32);
+        var mooreByChannel = new ushort[3][][];
+        for (var ch = 0; ch < 3; ch++)
+        {
+            mooreByChannel[ch] = new ushort[2][];
+            for (var k = 0; k < 2; k++)
+                mooreByChannel[ch][k] = DeriveMoore(kKernel, (byte)(1 + ch * 2 + k));
+        }
         return new RoundKeys
         {
             KPerm = kPerm,
             KKernel = kKernel,
             PermIndex = (byte)(SHA256.HashData(kPerm)[0] & 0x7F),
-            Moore1 = DeriveMoore(kKernel, 0x01),
-            Moore2 = DeriveMoore(kKernel, 0x02)
+            MooreByChannel = mooreByChannel
         };
     }
 

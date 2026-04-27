@@ -78,10 +78,11 @@ void automata_kernel_from_moore8(const uint16_t coef[8], int32_t kernel_out[3][3
 
 static int32_t (*select_kernel(
     uint32_t y, uint32_t x, uint16_t c, uint32_t round_idx,
-    int32_t k1[3][3], int32_t k2[3][3]
+    int32_t kernels[AUTOMATA_KERNEL_CHANNELS][AUTOMATA_KERNEL_VARIANTS][3][3]
 ))[3] {
+    uint32_t channel_idx = ((uint32_t)c) % AUTOMATA_KERNEL_CHANNELS;
     uint32_t pick = (y + x + (uint32_t)c + round_idx) & 1u;
-    return pick ? k2 : k1;
+    return kernels[channel_idx][pick];
 }
 
 int automata_step_u16(
@@ -91,15 +92,14 @@ int automata_step_u16(
     uint32_t alto,
     uint32_t ancho,
     uint16_t canales,
-    int32_t kernel1[3][3],
-    int32_t kernel2[3][3],
+    int32_t kernels[AUTOMATA_KERNEL_CHANNELS][AUTOMATA_KERNEL_VARIANTS][3][3],
     uint32_t round_idx,
     boundary_config_t bc
 ) {
     uint32_t y, x;
     uint16_t c;
 
-    if (!prev_state || !cur_permuted || !next_state || !kernel1 || !kernel2) {
+    if (!prev_state || !cur_permuted || !next_state || !kernels) {
         return -1;
     }
     if (alto == 0 || ancho == 0 || canales == 0) {
@@ -111,7 +111,7 @@ int automata_step_u16(
             for (c = 0; c < canales; ++c) {
                 int dy, dx;
                 int64_t acc = 0;
-                int32_t (*k)[3] = select_kernel(y, x, c, round_idx, kernel1, kernel2);
+                int32_t (*k)[3] = select_kernel(y, x, c, round_idx, kernels);
 
                 for (dy = -1; dy <= 1; ++dy) {
                     for (dx = -1; dx <= 1; ++dx) {

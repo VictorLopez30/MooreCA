@@ -16,7 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 final class Llaves {
     record SessionKeys(byte[] z, byte[] salt, byte[] prk, byte[] kPermBase, byte[] kKernelBase, byte[] kMac, byte[] kSeed) {}
-    record RoundKeys(byte[] kPerm, byte[] kKernel, int permIndex, int[] moore1, int[] moore2) {}
+    record RoundKeys(byte[] kPerm, byte[] kKernel, int permIndex, int[][][] mooreByChannel) {}
 
     static byte[] generateSalt() {
         byte[] salt = new byte[Common.SALT_BYTES];
@@ -58,7 +58,13 @@ final class Llaves {
         byte[] kPerm = hkdfExpand(session.prk(), buildRoundInfo("RCA|perm|v2|round=", round, ctx), 32);
         byte[] kKernel = hkdfExpand(session.prk(), buildRoundInfo("RCA|kernel|v2|round=", round, ctx), 32);
         byte permIndex = (byte)(MessageDigest.getInstance("SHA-256").digest(kPerm)[0] & 0x7F);
-        return new RoundKeys(kPerm, kKernel, permIndex & 0xFF, deriveMoore(kKernel, (byte)1), deriveMoore(kKernel, (byte)2));
+        int[][][] moore = new int[3][2][];
+        for (int ch = 0; ch < 3; ch++) {
+            for (int k = 0; k < 2; k++) {
+                moore[ch][k] = deriveMoore(kKernel, (byte)(1 + ch * 2 + k));
+            }
+        }
+        return new RoundKeys(kPerm, kKernel, permIndex & 0xFF, moore);
     }
 
     static Common.BoundaryConfig boundaryFromRound(RoundKeys rk) {

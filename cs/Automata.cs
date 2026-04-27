@@ -19,8 +19,7 @@ public static class Automata
         uint height,
         uint width,
         ushort channels,
-        int[,] kernel1,
-        int[,] kernel2,
+        int[][,] kernelsByChannel,
         uint roundIndex,
         BoundaryConfig bc)
     {
@@ -31,7 +30,7 @@ public static class Automata
                 for (ushort c = 0; c < channels; c++)
                 {
                     long acc = 0;
-                    var kernel = SelectKernel(y, x, c, roundIndex, kernel1, kernel2);
+                    var kernel = SelectKernel(y, x, c, roundIndex, kernelsByChannel);
                     for (var dy = -1; dy <= 1; dy++)
                     {
                         for (var dx = -1; dx <= 1; dx++)
@@ -50,8 +49,8 @@ public static class Automata
         }
     }
 
-    private static int[,] SelectKernel(uint y, uint x, ushort c, uint roundIndex, int[,] k1, int[,] k2)
-        => (((y + x + c + roundIndex) & 1u) == 0u) ? k1 : k2;
+    private static int[,] SelectKernel(uint y, uint x, ushort c, uint roundIndex, int[][,] kernelsByChannel)
+        => kernelsByChannel[(c % 3) * 2 + ((((y + x + c + roundIndex) & 1u) == 0u) ? 0 : 1)];
 
     private static int Index3(uint y, uint x, ushort c, uint width, ushort channels)
         => ((int)y * (int)width + (int)x) * channels + c;
