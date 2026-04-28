@@ -1,29 +1,15 @@
 #!/usr/bin/env python3
-"""
-Experimento 1:
-Ejecuta el cifrado variando el numero de rondas para C, Java y C# sobre una sola imagen.
-
-Rondas:
-1, 5, 10, 15, ..., 50
-
-Salida:
-- Carpeta con las imagenes cifradas generadas por cada lenguaje y cada numero de rondas.
-- Archivo CSV con tiempo de ejecucion y metricas:
-  entropy, chi, corr
-"""
-
 from __future__ import annotations
 
-import argparse
 import csv
 import math
 import os
 import shutil
 import statistics
 import subprocess
-import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -33,7 +19,6 @@ from PIL import Image
 ROOT_DIR = Path(__file__).resolve().parent
 C_DIR = ROOT_DIR / "c"
 JAVA_DIR = ROOT_DIR / "java"
-CS_DIR = ROOT_DIR / "cs"
 BUILD_DIR = ROOT_DIR / "v2" / "build"
 EXPERIMENTS_DIR = ROOT_DIR / "Experimentos"
 
@@ -42,9 +27,29 @@ JAVA_BUILD_DIR = BUILD_DIR / "java"
 CS_CIFRADO_PROJ = BUILD_DIR / "cs" / "Cifrado" / "Cifrado.csproj"
 CS_CIFRADO_DLL = BUILD_DIR / "cs" / "Cifrado" / "bin" / "Debug" / "net10.0" / "Cifrado.dll"
 
-ROUNDS = [1] + list(range(5, 55, 5))
 ALLOWED_EXTENSIONS = {".png", ".bmp", ".tif", ".tiff"}
 DEFAULT_REPETITIONS = 7
+DEFAULT_WARMUP_C = 0
+DEFAULT_WARMUP_JAVA = 1
+DEFAULT_WARMUP_CSHARP = 1
+
+try:
+    RESAMPLE_LANCZOS = Image.Resampling.LANCZOS
+except AttributeError:
+    RESAMPLE_LANCZOS = Image.LANCZOS
+
+
+@dataclass(frozen=True)
+class LanguageRunner:
+    name: str
+    warmup_runs: int
+
+
+LANGUAGE_RUNNERS = (
+    LanguageRunner("C", DEFAULT_WARMUP_C),
+    LanguageRunner("Java", DEFAULT_WARMUP_JAVA),
+    LanguageRunner("CSharp", DEFAULT_WARMUP_CSHARP),
+)
 
 
 def tool_exists(name: str) -> bool:
@@ -129,11 +134,7 @@ def compute_metrics(image_path: Path) -> dict[str, float]:
         denom = math.sqrt(max(var_x, 0.0) * max(var_y, 0.0))
         corr = cov / denom if denom > 0.0 else 0.0
 
-    return {
-        "entropy": entropy,
-        "chi": chi,
-        "corr": corr,
-    }
+    return {"entropy": entropy, "chi": chi, "corr": corr}
 
 
 def ensure_c_binaries() -> None:
@@ -150,7 +151,7 @@ def ensure_c_binaries() -> None:
         "-I", str(C_DIR),
         "-lcrypto",
         "-o", str(C_CIFRADOR),
-    ], cwd=ROOT_DIR)
+    ], cwd=ROOT_DIR, timeout=900)
     if proc.returncode != 0:
         raise RuntimeError(f"Fallo compilando C:\n{proc.stderr}")
 
@@ -160,7 +161,7 @@ def ensure_java_build() -> None:
         raise RuntimeError("javac/java no estan instalados.")
     JAVA_BUILD_DIR.mkdir(parents=True, exist_ok=True)
     sources = sorted(str(p) for p in JAVA_DIR.glob("*.java"))
-    proc = run_cmd(["javac", "-d", str(JAVA_BUILD_DIR), *sources], cwd=ROOT_DIR)
+    proc = run_cmd(["javac", "-d", str(JAVA_BUILD_DIR), *sources], cwd=ROOT_DIR, timeout=900)
     if proc.returncode != 0:
         raise RuntimeError(f"Fallo compilando Java:\n{proc.stderr}")
 
@@ -192,7 +193,7 @@ def ensure_cs_build() -> None:
         raise RuntimeError("dotnet no esta instalado.")
 
     write_csproj(CS_CIFRADO_PROJ, "Cifrado")
-    proc = run_cmd(["dotnet", "build", str(CS_CIFRADO_PROJ)], cwd=ROOT_DIR, timeout=900)
+    proc = run_cmd(["dotnet", "build", str(CS_CIFRADO_PROJ)], cwd=ROOT_DIR, timeout=1200)
     if proc.returncode != 0:
         raise RuntimeError(f"Fallo compilando C#:\n{proc.stderr}")
     if not CS_CIFRADO_DLL.exists():
@@ -206,7 +207,7 @@ def prepare_environment() -> None:
 
 
 def run_c_encrypt(image_path: Path, rounds: int, out_image: Path, session: dict[str, str]) -> float:
-    with tempfile.TemporaryDirectory(prefix="exp1_c_", dir=ROOT_DIR / "v2") as tmp:
+    with tempfile.TemporaryDirectory(prefix="exp_c_", dir=ROOT_DIR / "v2") as tmp:
         tmpdir = Path(tmp)
         out_bin = tmpdir / "cipher.bin"
         t0 = time.perf_counter()
@@ -218,7 +219,7 @@ def run_c_encrypt(image_path: Path, rounds: int, out_image: Path, session: dict[
             str(rounds),
             session["z_hex"],
             session["salt_hex"],
-        ], cwd=ROOT_DIR, timeout=900)
+        ], cwd=ROOT_DIR, timeout=1800)
         elapsed = time.perf_counter() - t0
         if proc.returncode != 0:
             raise RuntimeError(f"Error ejecutando C (rondas={rounds}):\n{proc.stderr or proc.stdout}")
@@ -226,7 +227,7 @@ def run_c_encrypt(image_path: Path, rounds: int, out_image: Path, session: dict[
 
 
 def run_java_encrypt(image_path: Path, rounds: int, out_image: Path, session: dict[str, str]) -> float:
-    with tempfile.TemporaryDirectory(prefix="exp1_java_", dir=ROOT_DIR / "v2") as tmp:
+    with tempfile.TemporaryDirectory(prefix="exp_java_", dir=ROOT_DIR / "v2") as tmp:
         tmpdir = Path(tmp)
         out_bin = tmpdir / "cipher.bin"
         t0 = time.perf_counter()
@@ -238,7 +239,7 @@ def run_java_encrypt(image_path: Path, rounds: int, out_image: Path, session: di
             str(rounds),
             session["z_hex"],
             session["salt_hex"],
-        ], cwd=ROOT_DIR, timeout=900)
+        ], cwd=ROOT_DIR, timeout=1800)
         elapsed = time.perf_counter() - t0
         if proc.returncode != 0:
             raise RuntimeError(f"Error ejecutando Java (rondas={rounds}):\n{proc.stderr or proc.stdout}")
@@ -246,7 +247,7 @@ def run_java_encrypt(image_path: Path, rounds: int, out_image: Path, session: di
 
 
 def run_cs_encrypt(image_path: Path, rounds: int, out_image: Path, session: dict[str, str]) -> float:
-    with tempfile.TemporaryDirectory(prefix="exp1_cs_", dir=ROOT_DIR / "v2") as tmp:
+    with tempfile.TemporaryDirectory(prefix="exp_cs_", dir=ROOT_DIR / "v2") as tmp:
         tmpdir = Path(tmp)
         out_bin = tmpdir / "cipher.bin"
         t0 = time.perf_counter()
@@ -258,11 +259,21 @@ def run_cs_encrypt(image_path: Path, rounds: int, out_image: Path, session: dict
             str(rounds),
             session["z_hex"],
             session["salt_hex"],
-        ], cwd=ROOT_DIR, timeout=1200)
+        ], cwd=ROOT_DIR, timeout=2400)
         elapsed = time.perf_counter() - t0
         if proc.returncode != 0:
             raise RuntimeError(f"Error ejecutando C# (rondas={rounds}):\n{proc.stderr or proc.stdout}")
         return elapsed
+
+
+def runner_function(language: str):
+    if language == "C":
+        return run_c_encrypt
+    if language == "Java":
+        return run_java_encrypt
+    if language == "CSharp":
+        return run_cs_encrypt
+    raise ValueError(f"Lenguaje no soportado: {language}")
 
 
 def measure_runner(
@@ -278,7 +289,7 @@ def measure_runner(
         raise ValueError("El numero de repeticiones debe ser al menos 1.")
 
     timings: list[float] = []
-    with tempfile.TemporaryDirectory(prefix="exp1_measure_", dir=ROOT_DIR / "v2") as tmp:
+    with tempfile.TemporaryDirectory(prefix="exp_measure_", dir=ROOT_DIR / "v2") as tmp:
         tmpdir = Path(tmp)
         scratch_image = tmpdir / "scratch.png"
 
@@ -294,100 +305,60 @@ def measure_runner(
     return mean_time, stddev_time
 
 
-def create_output_dir(base_name: str | None) -> Path:
+def create_output_dir(prefix: str, base_name: str | None) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    dir_name = base_name if base_name else f"experimento1_{stamp}"
+    dir_name = base_name if base_name else f"{prefix}_{stamp}"
     out_dir = EXPERIMENTS_DIR / dir_name
     out_dir.mkdir(parents=True, exist_ok=False)
     return out_dir
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Ejecuta el experimento 1 variando el numero de rondas para C, Java y C#."
-    )
-    parser.add_argument("image", help="Ruta de la imagen de entrada (PNG, BMP o TIFF).")
-    parser.add_argument(
-        "--output-name",
-        help="Nombre de la carpeta de salida dentro de Experimentos. Si no se indica, se genera con fecha y hora.",
-    )
-    parser.add_argument(
-        "--repetitions",
-        type=int,
-        default=DEFAULT_REPETITIONS,
-        help=f"Numero de repeticiones medidas por configuracion. Por defecto: {DEFAULT_REPETITIONS}.",
-    )
-    args = parser.parse_args()
+def resize_image_to_png(input_path: Path, size: int, output_path: Path) -> tuple[int, int]:
+    img = Image.open(input_path).convert("RGB")
+    resized = img.resize((size, size), RESAMPLE_LANCZOS)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    resized.save(output_path, format="PNG")
+    return resized.size
 
-    image_path = Path(args.image).resolve()
-    validate_input_image(image_path)
 
-    print("Preparando entorno de ejecucion...")
-    prepare_environment()
+def convert_image_to_format(input_path: Path, fmt: str, output_path: Path) -> tuple[int, int]:
+    img = Image.open(input_path).convert("RGB")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pil_fmt = fmt.upper()
+    if pil_fmt == "TIF":
+        pil_fmt = "TIFF"
+    img.save(output_path, format=pil_fmt)
+    return img.size
 
-    out_dir = create_output_dir(args.output_name)
-    csv_path = out_dir / "resultados.csv"
 
-    rows: list[dict[str, object]] = []
-    lang_runners = [
-        ("C", run_c_encrypt, 0),
-        ("Java", run_java_encrypt, 1),
-        ("CSharp", run_cs_encrypt, 1),
-    ]
-
-    for rounds in ROUNDS:
-        print(f"Procesando rondas={rounds} ...")
-        session = new_shared_session()
-        for language, runner, warmup_runs in lang_runners:
-            lang_dir = out_dir / language / f"rondas_{rounds:02d}"
-            lang_dir.mkdir(parents=True, exist_ok=True)
-            out_image = lang_dir / f"cifrada_{language.lower()}_r{rounds:02d}.png"
-
-            elapsed_mean, elapsed_stddev = measure_runner(
-                runner,
-                image_path,
-                rounds,
-                out_image,
-                session,
-                args.repetitions,
-                warmup_runs,
-            )
-            metrics = compute_metrics(out_image)
-
-            rows.append({
-                "rondas": rounds,
-                "lenguaje": language,
-                "tiempo_promedio_s": round(elapsed_mean, 6),
-                "desviacion_estandar_s": round(elapsed_stddev, 6),
-                "entropia": metrics["entropy"],
-                "chi_cuadrada": metrics["chi"],
-                "correlacion": metrics["corr"],
-            })
-
+def write_csv(csv_path: Path, fieldnames: list[str], rows: list[dict[str, object]]) -> None:
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "rondas",
-                "lenguaje",
-                "tiempo_promedio_s",
-                "desviacion_estandar_s",
-                "entropia",
-                "chi_cuadrada",
-                "correlacion",
-            ],
-        )
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
+
+def linear_regression(points: list[tuple[float, float]]) -> tuple[float, float, float]:
+    if len(points) < 2:
+        return 0.0, 0.0, 0.0
+
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    mean_x = statistics.fmean(xs)
+    mean_y = statistics.fmean(ys)
+    sxx = sum((x - mean_x) ** 2 for x in xs)
+    sxy = sum((x - mean_x) * (y - mean_y) for x, y in points)
+    if sxx == 0.0:
+        return 0.0, mean_y, 0.0
+    slope = sxy / sxx
+    intercept = mean_y - slope * mean_x
+    ss_tot = sum((y - mean_y) ** 2 for y in ys)
+    ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in points)
+    r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0.0 else 0.0
+    return slope, intercept, r2
+
+
+def print_output_summary(out_dir: Path, csv_paths: list[Path]) -> None:
     print(f"Experimento terminado. Resultados en: {out_dir}")
-    print(f"CSV generado: {csv_path}")
-    return 0
-
-
-if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+    for path in csv_paths:
+        print(f"CSV generado: {path}")

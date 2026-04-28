@@ -210,7 +210,102 @@ python3 experimento1.py black.bmp --output-name experimento_rondas
 python3 experimento1.py black.bmp --repetitions 10
 ```
 
-## 11. Flujo rapido recomendado
+## 11. Ejecucion del experimento 2
+
+`experimento2.py` varia el tamano de la imagen con un numero fijo de rondas.
+
+### Ejecucion basica
+
+```bash
+python3 experimento2.py black.bmp
+```
+
+### Fijando rondas y tamanos
+
+```bash
+python3 experimento2.py black.bmp --rounds 10 --sizes 256 512 1024 2048
+```
+
+### Con repeticiones
+
+```bash
+python3 experimento2.py black.bmp --rounds 10 --sizes 256 512 1024 --repetitions 10
+```
+
+## 12. Ejecucion del experimento 3
+
+`experimento3.py` estima la relacion entre tiempo y `N * R`.
+
+### Ejecucion basica
+
+```bash
+python3 experimento3.py black.bmp
+```
+
+### Con combinaciones personalizadas
+
+```bash
+python3 experimento3.py black.bmp --sizes 256 512 1024 --rounds 1 5 10 20 50
+```
+
+El experimento genera:
+
+- `resultados_detalle.csv`
+- `regresion.csv`
+
+## 13. Ejecucion del experimento 4
+
+`experimento4.py` compara los tres lenguajes con una sola imagen y un numero fijo de rondas.
+
+### Sesion compartida
+
+```bash
+python3 experimento4.py black.bmp --rounds 10 --session-mode shared
+```
+
+### Sesion independiente
+
+```bash
+python3 experimento4.py black.bmp --rounds 10 --session-mode independent
+```
+
+## 14. Ejecucion del experimento 5
+
+`experimento5.py` compara el impacto del formato de entrada usando `PNG`, `BMP` y `TIFF`.
+
+### Ejecucion basica
+
+```bash
+python3 experimento5.py black.bmp
+```
+
+### Fijando rondas
+
+```bash
+python3 experimento5.py black.bmp --rounds 10 --repetitions 10
+```
+
+## 15. Ejecucion del experimento 6
+
+`experimento6.py` verifica cumplimiento de cuota computacional.
+
+### Ejecucion basica
+
+```bash
+python3 experimento6.py black.bmp
+```
+
+### Cuota personalizada
+
+```bash
+python3 experimento6.py black.bmp --sizes 512 1024 2048 --rounds 10 20 --time-limit 5.0 --repetitions 10
+```
+
+El CSV de salida incluye la columna:
+
+- `cumple_cuota`
+
+## 16. Flujo rapido recomendado
 
 ### Levantar backend
 
@@ -233,11 +328,10 @@ Desde la raiz:
 python3 experimento1.py black.bmp --repetitions 10
 ```
 
-## 12. Notas
+## 17. Notas
 
 - Los formatos soportados para las pruebas actuales son:
   - `PNG`
   - `BMP`
   - `TIFF`
-- `JPG/JPEG` ya no forma parte del flujo principal.
-- El backend y `experimento1.py` compilan automaticamente lo necesario cuando aplica, pero sigue siendo util tener claros los comandos manuales.
+- El backend y los scripts de experimentos compilan automaticamente lo necesario cuando aplica, pero sigue siendo util tener claros los comandos manuales.
