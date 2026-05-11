@@ -12,9 +12,11 @@ import shutil
 import subprocess
 import tempfile
 import time
+import zipfile
 from pathlib import Path
+from uuid import uuid4
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from PIL import Image
 
@@ -28,6 +30,7 @@ JAVA_DIR = ROOT_DIR / "java"
 CS_DIR = ROOT_DIR / "cs"
 BUILD_DIR = BASE_DIR / "build"
 RESULTS_DIR = BASE_DIR / "Resultados"
+DOWNLOADS_DIR = RESULTS_DIR / "_downloads"
 
 C_CIFRADOR = BUILD_DIR / "cifrador_c"
 C_DESCIFRADOR = BUILD_DIR / "descifrador_c"
@@ -65,6 +68,10 @@ def img_to_b64(path: Path) -> str | None:
         return base64.b64encode(buf.getvalue()).decode()
     except Exception:
         return None
+
+
+def unique_name(prefix: str, suffix: str) -> str:
+    return f"{prefix}_{uuid4().hex}{suffix}"
 
 
 def parse_session_file(path: Path) -> dict[str, str]:
@@ -299,7 +306,51 @@ def finalize_result(lang: str, workdir: Path, original_png: Path, cipher_preview
     }
 
 
-def run_c(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+def summarize_encryption_result(lang: str, workdir: Path, cipher_preview: Path, session: dict[str, str], elapsed_s: float) -> dict:
+    img = Image.open(cipher_preview).convert("RGB")
+    return {
+        "lang": lang,
+        "size": f"{img.height}x{img.width}",
+        "metrics": compute_metrics(cipher_preview),
+        "histogram": compute_histogram(cipher_preview),
+        "elapsed_s": round(elapsed_s, 4),
+        "wall_s": round(elapsed_s, 4),
+        "recovery": None,
+        "cipher_img": img_to_b64(cipher_preview),
+        "recovered_img": None,
+        "session_file": str(Path(str(session["x_cur_path"]) + ".session.txt")) if "x_cur_path" in session else None,
+        "cipher_path": session.get("x_cur_path"),
+        "prev_path": session.get("x_prev_path"),
+        "preview_path": str(cipher_preview),
+        "workdir": str(workdir),
+    }
+
+
+def build_bundle_zip(items: list[tuple[str, Path]]) -> str | None:
+    if not items:
+        return None
+    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    filename = unique_name("cipher_bundle", ".zip")
+    bundle_path = DOWNLOADS_DIR / filename
+    with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for label, folder in items:
+            if not folder.exists():
+                continue
+            for child in folder.iterdir():
+                if child.is_file():
+                    zf.write(child, arcname=f"{label}/{child.name}")
+    return filename
+
+
+def copy_download_file(src: Path, prefix: str, suffix: str) -> str:
+    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    filename = unique_name(prefix, suffix)
+    dst = DOWNLOADS_DIR / filename
+    shutil.copy2(src, dst)
+    return filename
+
+
+def encrypt_c(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
     del passphrase
     ok, msg = ensure_c_binaries()
     if not ok:
@@ -321,6 +372,10 @@ def run_c(input_png: Path, steps: int, passphrase: str, shared_session: dict[str
         return result_error("C", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
     session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
+    return summarize_encryption_result("C", tmpdir, out_preview, session, wall)
+
+
+def decrypt_c_from_session(session: dict[str, str], out_recovered: Path) -> str | None:
     proc = run_cmd([
         str(C_DESCIFRADOR),
         session["x_prev_path"],
@@ -333,14 +388,26 @@ def run_c(input_png: Path, steps: int, passphrase: str, shared_session: dict[str
         session["z_hex"],
         session["salt_hex"],
     ], cwd=ROOT_DIR, timeout=240)
-    wall = time.perf_counter() - t0
     if proc.returncode != 0:
-        return result_error("C", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+        return proc.stderr[:400] or proc.stdout[:400]
+    return None
 
-    return finalize_result("C", tmpdir, input_png, out_preview, out_recovered, wall)
+
+def run_c(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+    t0 = time.perf_counter()
+    enc = encrypt_c(input_png, steps, passphrase, shared_session)
+    if enc.get("error"):
+        return enc
+    session = parse_session_file(Path(enc["session_file"]))
+    out_recovered = Path(enc["workdir"]) / "recovered_c.png"
+    err = decrypt_c_from_session(session, out_recovered)
+    wall = time.perf_counter() - t0
+    if err:
+        return result_error("C", err, round(wall, 4))
+    return finalize_result("C", Path(enc["workdir"]), input_png, Path(enc["preview_path"]), out_recovered, wall)
 
 
-def run_java(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+def encrypt_java(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
     del passphrase
     ok, msg = ensure_java_build()
     if not ok:
@@ -362,6 +429,10 @@ def run_java(input_png: Path, steps: int, passphrase: str, shared_session: dict[
         return result_error("Java", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
     session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
+    return summarize_encryption_result("Java", tmpdir, out_preview, session, wall)
+
+
+def decrypt_java_from_session(session: dict[str, str], out_recovered: Path) -> str | None:
     proc = run_cmd([
         "java", "-cp", str(JAVA_BUILD_DIR), "Descifrado",
         session["x_prev_path"],
@@ -374,14 +445,26 @@ def run_java(input_png: Path, steps: int, passphrase: str, shared_session: dict[
         session["z_hex"],
         session["salt_hex"],
     ], cwd=ROOT_DIR, timeout=300)
-    wall = time.perf_counter() - t0
     if proc.returncode != 0:
-        return result_error("Java", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+        return proc.stderr[:400] or proc.stdout[:400]
+    return None
 
-    return finalize_result("Java", tmpdir, input_png, out_preview, out_recovered, wall)
+
+def run_java(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+    t0 = time.perf_counter()
+    enc = encrypt_java(input_png, steps, passphrase, shared_session)
+    if enc.get("error"):
+        return enc
+    session = parse_session_file(Path(enc["session_file"]))
+    out_recovered = Path(enc["workdir"]) / "recovered_java.png"
+    err = decrypt_java_from_session(session, out_recovered)
+    wall = time.perf_counter() - t0
+    if err:
+        return result_error("Java", err, round(wall, 4))
+    return finalize_result("Java", Path(enc["workdir"]), input_png, Path(enc["preview_path"]), out_recovered, wall)
 
 
-def run_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+def encrypt_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
     del passphrase
     ok, msg = ensure_cs_projects()
     if not ok:
@@ -403,6 +486,10 @@ def run_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[st
         return result_error("C#", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
 
     session = parse_session_file(Path(str(out_cipher) + ".session.txt"))
+    return summarize_encryption_result("C#", tmpdir, out_preview, session, wall)
+
+
+def decrypt_cs_from_session(session: dict[str, str], out_recovered: Path) -> str | None:
     proc = run_cmd([
         "dotnet", "run", "--project", str(CS_DESCIFRADO_PROJ), "--",
         session["x_prev_path"],
@@ -415,11 +502,23 @@ def run_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[st
         session["z_hex"],
         session["salt_hex"],
     ], cwd=ROOT_DIR, timeout=360)
-    wall = time.perf_counter() - t0
     if proc.returncode != 0:
-        return result_error("C#", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+        return proc.stderr[:400] or proc.stdout[:400]
+    return None
 
-    return finalize_result("C#", tmpdir, input_png, out_preview, out_recovered, wall)
+
+def run_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+    t0 = time.perf_counter()
+    enc = encrypt_cs(input_png, steps, passphrase, shared_session)
+    if enc.get("error"):
+        return enc
+    session = parse_session_file(Path(enc["session_file"]))
+    out_recovered = Path(enc["workdir"]) / "recovered_cs.png"
+    err = decrypt_cs_from_session(session, out_recovered)
+    wall = time.perf_counter() - t0
+    if err:
+        return result_error("C#", err, round(wall, 4))
+    return finalize_result("C#", Path(enc["workdir"]), input_png, Path(enc["preview_path"]), out_recovered, wall)
 
 
 @app.route("/api/run", methods=["POST"])
@@ -460,12 +559,123 @@ def api_run():
             pass
 
     return jsonify({
+        "mode": "full",
         "image_size": [height, width],
         "steps": steps,
         "session_mode": session_mode,
         "original_img": orig_b64,
         "original_histogram": original_histogram,
         "results": [java_r, c_r, cs_r],
+    })
+
+
+@app.route("/api/encrypt-only", methods=["POST"])
+def api_encrypt_only():
+    if "image" not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    steps = int(request.form.get("steps", 10))
+    passphrase = request.form.get("pass", "unused")
+    session_mode = request.form.get("session_mode", "independent")
+    if session_mode not in {"independent", "shared"}:
+        session_mode = "independent"
+
+    f = request.files["image"]
+    if not allowed_image_filename(f.filename):
+        return jsonify({"error": "Formato no soportado. Usa PNG, BMP o TIFF."}), 400
+
+    img = Image.open(f.stream).convert("RGB")
+    width, height = img.size
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    orig_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False, dir=BASE_DIR) as tmp:
+        input_png = Path(tmp.name)
+    try:
+        img.save(input_png, format="PNG")
+        original_histogram = compute_histogram(input_png)
+        shared_session = new_shared_session() if session_mode == "shared" else None
+        java_r = encrypt_java(input_png, steps, passphrase, shared_session if session_mode == "shared" else None)
+        c_r = encrypt_c(input_png, steps, passphrase, shared_session if session_mode == "shared" else None)
+        cs_r = encrypt_cs(input_png, steps, passphrase, shared_session if session_mode == "shared" else None)
+    finally:
+        try:
+            input_png.unlink()
+        except OSError:
+            pass
+
+    bundle_items: list[tuple[str, Path]] = []
+    for result in (java_r, c_r, cs_r):
+        if not result.get("error") and result.get("workdir"):
+            bundle_items.append((result["lang"], Path(result["workdir"])))
+    bundle_name = build_bundle_zip(bundle_items)
+
+    return jsonify({
+        "mode": "encrypt",
+        "image_size": [height, width],
+        "steps": steps,
+        "session_mode": session_mode,
+        "original_img": orig_b64,
+        "original_histogram": original_histogram,
+        "results": [java_r, c_r, cs_r],
+        "bundle_url": f"http://localhost:5000/api/download/{bundle_name}" if bundle_name else None,
+        "bundle_name": bundle_name,
+    })
+
+
+@app.route("/api/decrypt-only", methods=["POST"])
+def api_decrypt_only():
+    language = request.form.get("language", "C")
+    if language not in {"C", "Java", "C#"}:
+        return jsonify({"error": "Lenguaje invalido."}), 400
+
+    required = ("cipher", "prev", "session")
+    for key in required:
+        if key not in request.files:
+            return jsonify({"error": f"Falta el archivo requerido: {key}"}), 400
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    tmpdir = Path(tempfile.mkdtemp(prefix="decrypt_", dir=RESULTS_DIR))
+    cipher_file = tmpdir / request.files["cipher"].filename
+    prev_file = tmpdir / request.files["prev"].filename
+    session_file = tmpdir / request.files["session"].filename
+    request.files["cipher"].save(cipher_file)
+    request.files["prev"].save(prev_file)
+    request.files["session"].save(session_file)
+
+    session = parse_session_file(session_file)
+    session["x_cur_path"] = str(cipher_file)
+    session["x_prev_path"] = str(prev_file)
+    out_recovered = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}.png"
+
+    if language == "C":
+        ok, msg = ensure_c_binaries()
+        if not ok:
+            return jsonify({"error": msg}), 500
+        err = decrypt_c_from_session(session, out_recovered)
+    elif language == "Java":
+        ok, msg = ensure_java_build()
+        if not ok:
+            return jsonify({"error": msg}), 500
+        err = decrypt_java_from_session(session, out_recovered)
+    else:
+        ok, msg = ensure_cs_projects()
+        if not ok:
+            return jsonify({"error": msg}), 500
+        err = decrypt_cs_from_session(session, out_recovered)
+
+    if err:
+        return jsonify({"error": err}), 500
+
+    download_name = copy_download_file(out_recovered, "recovered_image", ".png")
+    return jsonify({
+        "mode": "decrypt",
+        "language": language,
+        "recovered_img": img_to_b64(out_recovered),
+        "download_url": f"http://localhost:5000/api/download/{download_name}",
+        "download_name": download_name,
     })
 
 
@@ -476,6 +686,11 @@ def health():
         "c": "ready" if C_DIR.exists() and tool_exists("gcc") else "not compiled",
         "csharp": "ready" if CS_DIR.exists() and tool_exists("dotnet") else "not compiled",
     })
+
+
+@app.route("/api/download/<path:filename>")
+def api_download(filename: str):
+    return send_from_directory(DOWNLOADS_DIR, filename, as_attachment=True)
 
 
 if __name__ == "__main__":

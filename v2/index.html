@@ -16,19 +16,13 @@
   .header-label{font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent1);font-weight:700;}
   h1{font-family:'Syne',sans-serif;font-size:clamp(1.8rem,4vw,3.2rem);font-weight:800;line-height:1;background:linear-gradient(135deg,var(--accent1) 0%,var(--accent2) 50%,var(--accent3) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
   .subtitle{font-size:.8rem;color:var(--muted);margin-top:.3rem;font-style:italic;}
-  .lang-strip{display:flex;gap:1rem;padding:1.5rem 2rem;border-bottom:1px solid var(--border);flex-wrap:wrap;}
-  .lang-badge{display:flex;align-items:center;gap:.5rem;padding:.4rem .9rem;border-radius:4px;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1px solid;}
-  .badge-java{border-color:var(--accent1);color:var(--accent1);background:rgba(0,255,200,.07)}
-  .badge-c{border-color:var(--accent2);color:var(--accent2);background:rgba(255,107,53,.07)}
-  .badge-cs{border-color:var(--accent3);color:var(--accent3);background:rgba(167,139,250,.07)}
-  .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
   main{padding:2rem;display:grid;gap:2rem;}
   .upload-zone{border:2px dashed var(--border);border-radius:8px;padding:2.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem;cursor:pointer;transition:all .2s;background:var(--surface);}
   .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent1);background:rgba(0,255,200,.04);box-shadow:0 0 30px rgba(0,255,200,.08);}
   .upload-zone input[type=file]{display:none}
   .upload-text{font-size:.85rem;color:var(--muted)}
   .upload-text span{color:var(--accent1);text-decoration:underline;cursor:pointer}
-  #preview-row{display:none;gap:1rem;flex-wrap:wrap;padding:1rem;background:var(--surface);border-radius:8px;border:1px solid var(--border);}
+  #preview-row{display:flex;gap:1rem;flex-wrap:wrap;padding:1rem;background:var(--surface);border-radius:8px;border:1px solid var(--border);}
   .preview-item{display:flex;flex-direction:column;gap:.4rem;align-items:center}
   .preview-item img,.preview-item canvas{width:120px;height:120px;object-fit:contain;border-radius:4px;border:1px solid var(--border);image-rendering:pixelated;}
   .preview-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
@@ -36,6 +30,14 @@
   .run-btn:hover{box-shadow:0 0 35px rgba(0,255,200,.4);transform:translateY(-1px);}
   .run-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
   .control-panel{display:grid;gap:1rem;padding:1rem 1.2rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+  .op-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+  .op-option{display:block;padding:.8rem .9rem;border:1px solid var(--border);border-radius:6px;background:rgba(255,255,255,.02);min-width:0;cursor:pointer;transition:border-color .2s, background .2s, box-shadow .2s}
+  .op-option:hover{border-color:rgba(255,107,53,.3);background:rgba(255,107,53,.05)}
+  .op-option input{display:none}
+  .op-option.selected{border-color:var(--accent2);background:rgba(255,107,53,.10);box-shadow:0 0 0 1px rgba(255,107,53,.12) inset}
+  .op-copy{display:flex;flex-direction:column;gap:.2rem}
+  .op-copy strong{font-size:.78rem}
+  .op-copy span{font-size:.68rem;color:var(--muted);line-height:1.4}
   .control-title{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
   .session-modes{display:flex;gap:1rem;flex-wrap:wrap}
   .session-option{display:block;padding:.7rem .8rem;border:1px solid var(--border);border-radius:6px;background:rgba(255,255,255,.02);min-width:260px;cursor:pointer;transition:border-color .2s, background .2s, box-shadow .2s}
@@ -51,6 +53,14 @@
   .param-field input{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Space Mono',monospace;padding:.7rem .8rem;outline:none;transition:border-color .2s, box-shadow .2s}
   .param-field input:focus{border-color:var(--accent1);box-shadow:0 0 0 1px rgba(0,255,200,.16)}
   .param-help{font-size:.65rem;color:var(--muted);line-height:1.4}
+  .panel-hidden{display:none!important}
+  .decrypt-panel{display:grid;gap:1rem;padding:1rem 1.2rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+  .file-field{display:flex;flex-direction:column;gap:.35rem}
+  .file-field label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+  .file-field input,.file-field select{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Space Mono',monospace;padding:.7rem .8rem;outline:none}
+  .result-action{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1rem}
+  .result-action.centered{justify-content:center}
+  .secondary-btn{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.75rem 1rem;font-family:'Space Mono',monospace;cursor:pointer}
   #progress{display:none;flex-direction:column;gap:.8rem;padding:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
   .progress-line{display:flex;align-items:center;gap:.7rem;font-size:.8rem}
   .spinner{width:14px;height:14px;border:2px solid transparent;border-top-color:var(--accent1);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0;}
@@ -118,22 +128,48 @@
   @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .stagger>*{opacity:0;animation:fadeIn .4s ease forwards}
   .stagger>*:nth-child(1){animation-delay:.05s}.stagger>*:nth-child(2){animation-delay:.12s}.stagger>*:nth-child(3){animation-delay:.19s}
+  @media (max-width: 900px){
+    .op-modes{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
 <div id="app">
 <header>
-  <div class="header-label">Autómata Celular · Vecindad de Moore</div>
   <h1>Comparador de Implementaciones</h1>
-  <p class="subtitle">Cifrado + Descifrado de imagen con AC-Moore — Java · C · C# · sesión independiente o compartida</p>
+  <p class="subtitle" id="page-subtitle">Cifrado - Descifrado de imagen con AC-Moore — Java · C · C# </p>
 </header>
-<div class="lang-strip">
-  <div class="lang-badge badge-java"><span class="dot"></span>Java</div>
-  <div class="lang-badge badge-c"><span class="dot"></span>C (nativo)</div>
-  <div class="lang-badge badge-cs"><span class="dot"></span>C# (.NET)</div>
-</div>
 
 <main>
+  <div class="control-panel">
+    <div>
+      <div class="control-title" style="margin-bottom:.65rem">Modo de operación</div>
+      <div class="op-modes">
+        <label class="op-option">
+          <input type="radio" name="operation-mode" value="full" checked>
+          <div class="op-copy">
+            <strong>Cifrado + Descifrado</strong>
+            <span>Ejecuta el flujo completo y compara Java, C y C# con recuperación.</span>
+          </div>
+        </label>
+        <label class="op-option">
+          <input type="radio" name="operation-mode" value="encrypt">
+          <div class="op-copy">
+            <strong>Solo Cifrado</strong>
+            <span>Genera los archivos cifrados y permite guardarlos en un paquete descargable.</span>
+          </div>
+        </label>
+        <label class="op-option">
+          <input type="radio" name="operation-mode" value="decrypt">
+          <div class="op-copy">
+            <strong>Solo Descifrado</strong>
+            <span>Sube los archivos del cifrado y recupera la imagen descifrada.</span>
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
   <!-- Upload -->
   <div class="upload-zone" id="drop-zone">
     <input type="file" id="file-input" accept=".png,.bmp,.tif,.tiff,image/png,image/bmp,image/tiff">
@@ -152,7 +188,32 @@
     </div>
   </div>
 
-  <div class="control-panel">
+  <div class="decrypt-panel panel-hidden" id="decrypt-panel">
+    <div class="param-grid">
+      <div class="file-field">
+        <label for="decrypt-language">Implementación</label>
+        <select id="decrypt-language">
+          <option value="C">C</option>
+          <option value="Java">Java</option>
+          <option value="C#">C#</option>
+        </select>
+      </div>
+      <div class="file-field">
+        <label for="decrypt-cipher">Archivo cifrado (.bin)</label>
+        <input type="file" id="decrypt-cipher" accept=".bin,application/octet-stream">
+      </div>
+      <div class="file-field">
+        <label for="decrypt-prev">Archivo previo (.prev.bin)</label>
+        <input type="file" id="decrypt-prev" accept=".bin,application/octet-stream">
+      </div>
+      <div class="file-field">
+        <label for="decrypt-session">Archivo de sesión (.session.txt)</label>
+        <input type="file" id="decrypt-session" accept=".txt,text/plain">
+      </div>
+    </div>
+  </div>
+
+  <div class="control-panel" id="encrypt-controls">
     <div class="param-grid">
       <div>
         <div class="control-title" style="margin-bottom:.65rem">Modo de sesión criptográfica</div>
@@ -181,7 +242,7 @@
     </div>
   </div>
 
-  <button class="run-btn" id="run-btn" onclick="runComparison()">
+  <button class="run-btn" id="run-btn" onclick="runOperation()">
     ▶ Ejecutar comparación
   </button>
 
@@ -194,26 +255,28 @@
 
   <!-- Results -->
   <div id="results">
-    <div class="section-title">Original · Cifrada · Descifrada — por lenguaje</div>
+    <div class="section-title" id="images-section-title">Original · Cifrada · Descifrada — por lenguaje</div>
     <div class="images-grid stagger" id="images-grid"></div>
 
-    <div class="section-title" style="margin-top:2rem">Rendimiento</div>
+    <div class="result-action centered" id="encrypt-actions"></div>
+    <div class="section-title" id="perf-section-title" style="margin-top:2rem">Rendimiento</div>
     <div class="perf-row stagger" id="perf-row"></div>
 
     <div class="section-title" id="metricas-criptograficas" style="margin-top:2rem">Métricas criptográficas (gen final)</div>
     <div class="metrics-grid stagger" id="metrics-cards"></div>
 
-    <div class="section-title" style="margin-top:2rem">Histogramas RGB</div>
+    <div class="section-title" id="hist-section-title" style="margin-top:2rem">Histogramas RGB</div>
     <div class="histogram-stack stagger" id="histogram-grid"></div>
 
-    <div class="section-title" style="margin-top:2rem">Tabla de comparación</div>
+    <div class="section-title" id="table-section-title" style="margin-top:2rem">Tabla de comparación</div>
     <div id="comparison-table"></div>
 
-    <div class="section-title" style="margin-top:2rem">Log</div>
+    <div class="result-action centered" id="decrypt-actions"></div>
+    <div class="section-title" id="log-section-title" style="margin-top:2rem">Log</div>
     <div class="log-box" id="log-box"></div>
 
-    <div class="section-title" style="margin-top:2rem">Guía rápida del sistema</div>
-    <div class="info-grid">
+    <div class="section-title" id="guide-section-title" style="margin-top:2rem">Guía rápida del sistema</div>
+    <div class="info-grid" id="guide-grid">
       <div class="info-card" id="desc-entropia">
         <h3>Entropía de Shannon</h3>
         <p>Mide qué tan uniforme o impredecible es la distribución de valores de la imagen cifrada.</p>
@@ -235,10 +298,10 @@
         <p>Sirve para detectar picos, saturaciones o tendencias visibles en la imagen cifrada.</p>
       </div>
     </div>
-    <a class="back-link" href="#metricas-criptograficas">Volver a métricas</a>
+    <a class="back-link" id="back-metrics-link" href="#metricas-criptograficas">Volver a métricas</a>
 
-    <div class="section-title" style="margin-top:2rem">Cómo funciona el cifrado</div>
-    <div class="info-grid">
+    <div class="section-title" id="how-section-title" style="margin-top:2rem">Cómo funciona el cifrado</div>
+    <div class="info-grid" id="how-grid">
       <div class="info-card">
         <h3>1. Imagen de entrada</h3>
         <p>La imagen se convierte a datos RGB crudos. El cifrado trabaja sobre los bytes de píxeles, no sobre el archivo comprimido directamente.</p>
@@ -267,7 +330,7 @@
       </div>
     </div>
 
-    <div class="info-note">
+    <div class="info-note" id="guide-note">
       Las métricas ayudan a observar comportamiento estadístico, pero no sustituyen un análisis criptográfico formal. En esta interfaz se usan como apoyo para comparar difusión, uniformidad y recuperación entre las implementaciones en C, Java y C#.
     </div>
   </div>
@@ -281,6 +344,7 @@
 'use strict';
 // ── State ──────────────────────────────────────────────────────────────
 let uploadedFile = null;
+let currentMode = 'full';
 
 // ── Upload ────────────────────────────────────────────────────────────
 const dropZone  = document.getElementById('drop-zone');
@@ -303,7 +367,11 @@ fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(
 document.querySelectorAll('.session-option input[name="session-mode"]').forEach(input => {
   input.addEventListener('change', syncSessionModeUi);
 });
+document.querySelectorAll('.op-option input[name="operation-mode"]').forEach(input => {
+  input.addEventListener('change', syncOperationModeUi);
+});
 syncSessionModeUi();
+syncOperationModeUi();
 
 function handleFile(file) {
   uploadedFile = file;
@@ -314,11 +382,12 @@ function handleFile(file) {
       const canvas = document.getElementById('preview-canvas');
       canvas.width = img.width; canvas.height = img.height;
       canvas.getContext('2d').drawImage(img, 0, 0);
+      document.getElementById('preview-row').classList.toggle('panel-hidden', currentMode === 'decrypt' || !uploadedFile);
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
-  document.getElementById('preview-row').style.display = 'flex';
+  document.getElementById('preview-row').classList.toggle('panel-hidden', currentMode === 'decrypt' || !uploadedFile);
   document.getElementById('run-btn').style.display = 'block';
   document.getElementById('results').style.display = 'none';
 }
@@ -330,9 +399,45 @@ function syncSessionModeUi() {
   });
 }
 
+function syncOperationModeUi() {
+  document.querySelectorAll('.op-option').forEach(option => {
+    const input = option.querySelector('input[name="operation-mode"]');
+    option.classList.toggle('selected', !!input?.checked);
+  });
+  currentMode = document.querySelector('input[name="operation-mode"]:checked')?.value || 'full';
+  const isDecrypt = currentMode === 'decrypt';
+  document.getElementById('drop-zone').classList.toggle('panel-hidden', isDecrypt);
+  document.getElementById('preview-row').classList.toggle('panel-hidden', isDecrypt || !uploadedFile);
+  document.getElementById('encrypt-controls').classList.toggle('panel-hidden', isDecrypt);
+  document.getElementById('decrypt-panel').classList.toggle('panel-hidden', !isDecrypt);
+
+  const btn = document.getElementById('run-btn');
+  btn.style.display = 'block';
+  btn.textContent =
+    currentMode === 'full' ? '▶ Ejecutar comparación' :
+    currentMode === 'encrypt' ? '▶ Ejecutar solo cifrado' :
+    '▶ Ejecutar descifrado';
+
+  document.getElementById('page-subtitle').textContent =
+    currentMode === 'full'
+      ? 'Cifrado + Descifrado de imagen con AC-Moore — Java · C · C# · sesión independiente o compartida'
+      : currentMode === 'encrypt'
+      ? 'Solo cifrado de imagen con AC-Moore — Java · C · C# · sesión independiente o compartida'
+      : 'Solo descifrado de archivos cifrados con AC-Moore';
+}
+
 // ── Run ───────────────────────────────────────────────────────────────
-async function runComparison() {
-  if (!uploadedFile) return;
+async function runOperation() {
+  if ((currentMode === 'full' || currentMode === 'encrypt') && !uploadedFile) return;
+  if (currentMode === 'decrypt') {
+    const cipher = document.getElementById('decrypt-cipher').files[0];
+    const prev = document.getElementById('decrypt-prev').files[0];
+    const session = document.getElementById('decrypt-session').files[0];
+    if (!cipher || !prev || !session) {
+      alert('Selecciona los tres archivos necesarios para descifrar.');
+      return;
+    }
+  }
   const btn = document.getElementById('run-btn');
   btn.disabled = true;
 
@@ -351,17 +456,27 @@ async function runComparison() {
   });
 
   const fd = new FormData();
-  fd.append('image', uploadedFile);
-  const sessionMode = document.querySelector('input[name="session-mode"]:checked')?.value || 'independent';
-  const roundsInput = document.getElementById('rounds-input');
-  const rounds = Math.max(1, Math.min(10000, parseInt(roundsInput?.value || '10', 10) || 10));
-  if (roundsInput) roundsInput.value = String(rounds);
-  fd.append('session_mode', sessionMode);
-  fd.append('steps', String(rounds));
+  let endpoint = 'http://localhost:5000/api/run';
+  if (currentMode === 'full' || currentMode === 'encrypt') {
+    fd.append('image', uploadedFile);
+    const sessionMode = document.querySelector('input[name="session-mode"]:checked')?.value || 'independent';
+    const roundsInput = document.getElementById('rounds-input');
+    const rounds = Math.max(1, Math.min(10000, parseInt(roundsInput?.value || '10', 10) || 10));
+    if (roundsInput) roundsInput.value = String(rounds);
+    fd.append('session_mode', sessionMode);
+    fd.append('steps', String(rounds));
+    endpoint = currentMode === 'full' ? 'http://localhost:5000/api/run' : 'http://localhost:5000/api/encrypt-only';
+  } else {
+    fd.append('language', document.getElementById('decrypt-language').value);
+    fd.append('cipher', document.getElementById('decrypt-cipher').files[0]);
+    fd.append('prev', document.getElementById('decrypt-prev').files[0]);
+    fd.append('session', document.getElementById('decrypt-session').files[0]);
+    endpoint = 'http://localhost:5000/api/decrypt-only';
+  }
 
   let data;
   try {
-    const resp = await fetch('http://localhost:5000/api/run', { method:'POST', body:fd });
+    const resp = await fetch(endpoint, { method:'POST', body:fd });
     if (!resp.ok) {
       const errData = await resp.json().catch(()=>({error:'HTTP '+resp.status}));
       throw new Error(errData.error || ('HTTP '+resp.status));
@@ -380,13 +495,20 @@ async function runComparison() {
   const cR = results.find(r=>r.lang==='C')    || {};
   const csR= results.find(r=>r.lang==='C#')   || {};
 
-  setProgress('java','done', jR.error  ? 'Java ⚠ error'          : 'Java listo ✓');
-  setProgress('c',   'done', cR.error  ? 'C ⚠ no compilado'      : 'C listo ✓');
-  setProgress('cs',  'done', csR.error ? 'C# ⚠ no compilado'     : 'C# listo ✓');
+  if (currentMode === 'decrypt') {
+    setProgress('java','done', 'Preparando salida…');
+    setProgress('c',   'done', 'Descifrado listo ✓');
+    setProgress('cs',  'done', 'Listo');
+  } else {
+    setProgress('java','done', jR.error  ? 'Java ⚠ error'          : 'Java listo ✓');
+    setProgress('c',   'done', cR.error  ? 'C ⚠ no compilado'      : 'C listo ✓');
+    setProgress('cs',  'done', csR.error ? 'C# ⚠ no compilado'     : 'C# listo ✓');
+  }
 
   await delay(350);
   prog.style.display = 'none';
-  renderResults(data);
+  if (currentMode === 'decrypt') renderDecryptOnlyResult(data);
+  else renderResults(data, currentMode);
   btn.disabled = false;
 }
 
@@ -411,16 +533,24 @@ const LM = {
 };
 
 // ── Render ────────────────────────────────────────────────────────────
-function renderResults(data) {
+function renderResults(data, mode='full') {
   const res = document.getElementById('results');
   res.style.display = 'block';
   res.classList.add('fade-in');
+  setResultSectionsForMode(mode);
+  const encryptActions = document.getElementById('encrypt-actions');
+  const decryptActions = document.getElementById('decrypt-actions');
+  encryptActions.innerHTML = '';
+  decryptActions.innerHTML = '';
 
   const results = data.results || [];
   const sessionMode = data.session_mode || 'independent';
   const jR  = results.find(r=>r.lang==='Java') || {};
   const cR  = results.find(r=>r.lang==='C')    || {};
   const csR = results.find(r=>r.lang==='C#')   || {};
+
+  document.getElementById('images-section-title').textContent =
+    mode === 'encrypt' ? 'Original · Cifrada — por lenguaje' : 'Original · Cifrada · Descifrada — por lenguaje';
 
   // ── Images grid ──────────────────────────────────────────────────
   const ig = document.getElementById('images-grid');
@@ -447,7 +577,7 @@ function renderResults(data) {
                 <img src="data:image/png;base64,${r.cipher_img}" alt="cifrada">
                 <div class="img-label">Cifrada</div>
               </div>` : ''}
-              ${r.recovered_img ? `<div class="img-card">
+              ${mode === 'full' && r.recovered_img ? `<div class="img-card">
                 <img src="data:image/png;base64,${r.recovered_img}" alt="descifrada">
                 <div class="img-label">Descifrada</div>
               </div>` : ''}
@@ -526,7 +656,7 @@ function renderResults(data) {
     {f:'Entropía',     j:last(jR).entropy?.toFixed(4), c:last(cR).entropy?.toFixed(4), cs:last(csR).entropy?.toFixed(4)},
     {f:'Chi²',         j:last(jR).chi?.toFixed(2),     c:last(cR).chi?.toFixed(2),     cs:last(csR).chi?.toFixed(2)},
     {f:'Correlación',  j:last(jR).corr?.toFixed(4),    c:last(cR).corr?.toFixed(4),    cs:last(csR).corr?.toFixed(4)},
-    {f:'Recuperación', j:jR.recovery,  c:cR.recovery,  cs:csR.recovery},
+    {f:'Recuperación', j:mode==='full'?jR.recovery:'—',  c:mode==='full'?cR.recovery:'—',  cs:mode==='full'?csR.recovery:'—'},
     {f:'SHA-256',      j:'MessageDigest', c:'OpenSSL',  cs:'System.Security'},
     {f:'Runtime',      j:'JVM', c:'nativo -O2', cs:'.NET 8'},
   ];
@@ -549,12 +679,89 @@ function renderResults(data) {
   // ── Log ──────────────────────────────────────────────────────────
   let log='';
   log += `[sesion] modo=${sessionMode==='shared'?'compartida':'independiente'}\n`;
+  log += `[operacion] modo=${mode==='full'?'cifrado+descifrado':'solo cifrado'}\n`;
   [jR,cR,csR].forEach(r=>{
     const cls=r.lang==='Java'?'log-java':r.lang==='C'?'log-c':'log-cs';
     if(r.error) log+=`<span class="${cls}">[${r.lang}] ERROR: ${r.error}\n</span>`;
-    else log+=`<span class="${cls}">[${r.lang}] steps=${(r.metrics||[]).length-1}, elapsed=${r.elapsed_s}s, recovery=${r.recovery||'—'}\n</span>`;
+    else log+=`<span class="${cls}">[${r.lang}] elapsed=${r.elapsed_s}s, recovery=${mode==='full'?(r.recovery||'—'):'no-aplica'}\n</span>`;
   });
   document.getElementById('log-box').innerHTML = log||'(sin salida)';
+
+  if (mode === 'encrypt' && data.bundle_url) {
+    encryptActions.innerHTML = `<button class="secondary-btn" id="download-bundle-btn">Guardar paquete cifrado</button>`;
+    document.getElementById('download-bundle-btn').addEventListener('click', () => {
+      saveUrlWithPicker(data.bundle_url, data.bundle_name || 'cipher_bundle.zip');
+    });
+  }
+}
+
+function renderDecryptOnlyResult(data) {
+  const res = document.getElementById('results');
+  res.style.display = 'block';
+  res.classList.add('fade-in');
+  setResultSectionsForMode('decrypt');
+  document.getElementById('images-section-title').textContent = 'Imagen descifrada';
+  document.getElementById('perf-row').innerHTML = '';
+  document.getElementById('metrics-cards').innerHTML = '';
+  document.getElementById('histogram-grid').innerHTML = '';
+  document.getElementById('comparison-table').innerHTML = '';
+  document.getElementById('images-grid').innerHTML = `
+    <div class="lang-images">
+      <div class="lang-images-header" style="color:${(LM[data.language]||{}).color||'var(--text)'}">${(LM[data.language]||{}).icon||''} ${data.language || ''}</div>
+      <div class="lang-images-row">
+        <div class="img-card">
+          <img src="data:image/png;base64,${data.recovered_img||''}" alt="descifrada">
+          <div class="img-label">Descifrada</div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('log-box').textContent = `[operacion] modo=solo descifrado\n[lenguaje] ${data.language || '—'}\n[resultado] imagen recuperada\n`;
+  document.getElementById('encrypt-actions').innerHTML = '';
+  const actions = document.getElementById('decrypt-actions');
+  actions.innerHTML = data.download_url
+    ? `<button class="secondary-btn" id="download-recovered-btn">Guardar imagen descifrada</button>`
+    : '';
+  const btn = document.getElementById('download-recovered-btn');
+  if (btn) btn.addEventListener('click', () => saveUrlWithPicker(data.download_url, data.download_name || 'imagen_descifrada.png'));
+}
+
+function setResultSectionsForMode(mode) {
+  const showCompareBlocks = mode !== 'decrypt';
+  ['perf-section-title','perf-row','metricas-criptograficas','metrics-cards','hist-section-title','histogram-grid','table-section-title','comparison-table'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('panel-hidden', !showCompareBlocks);
+  });
+  ['guide-section-title','guide-grid','back-metrics-link','how-section-title','how-grid','guide-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('panel-hidden', mode === 'decrypt');
+  });
+}
+
+async function saveUrlWithPicker(url, suggestedName) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('No se pudo descargar el archivo.');
+    const blob = await resp.blob();
+    if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: 'Archivo', accept: { [blob.type || 'application/octet-stream']: ['.' + suggestedName.split('.').pop()] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = suggestedName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+  } catch (err) {
+    alert(err.message || 'No se pudo guardar el archivo.');
+  }
 }
 
 const histogramStates = {};
