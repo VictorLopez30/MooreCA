@@ -456,7 +456,7 @@ async function runOperation() {
   });
 
   const fd = new FormData();
-  let endpoint = 'http://localhost:5000/api/run';
+  let endpoint = '/api/run';
   if (currentMode === 'full' || currentMode === 'encrypt') {
     fd.append('image', uploadedFile);
     const sessionMode = document.querySelector('input[name="session-mode"]:checked')?.value || 'independent';
@@ -465,13 +465,13 @@ async function runOperation() {
     if (roundsInput) roundsInput.value = String(rounds);
     fd.append('session_mode', sessionMode);
     fd.append('steps', String(rounds));
-    endpoint = currentMode === 'full' ? 'http://localhost:5000/api/run' : 'http://localhost:5000/api/encrypt-only';
+    endpoint = currentMode === 'full' ? '/api/run' : '/api/encrypt-only';
   } else {
     fd.append('language', document.getElementById('decrypt-language').value);
     fd.append('cipher', document.getElementById('decrypt-cipher').files[0]);
     fd.append('prev', document.getElementById('decrypt-prev').files[0]);
     fd.append('session', document.getElementById('decrypt-session').files[0]);
-    endpoint = 'http://localhost:5000/api/decrypt-only';
+    endpoint = '/api/decrypt-only';
   }
 
   let data;

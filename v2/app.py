@@ -16,7 +16,7 @@ import zipfile
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, abort, after_this_request, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 from PIL import Image
 
@@ -29,8 +29,8 @@ C_DIR = ROOT_DIR / "c"
 JAVA_DIR = ROOT_DIR / "java"
 CS_DIR = ROOT_DIR / "cs"
 BUILD_DIR = BASE_DIR / "build"
-RESULTS_DIR = BASE_DIR / "Resultados"
-DOWNLOADS_DIR = RESULTS_DIR / "_downloads"
+TEMP_ROOT = Path(tempfile.gettempdir()) / "tt_v2_runtime"
+DOWNLOADS_DIR = TEMP_ROOT / "downloads"
 
 C_CIFRADOR = BUILD_DIR / "cifrador_c"
 C_DESCIFRADOR = BUILD_DIR / "descifrador_c"
@@ -72,6 +72,38 @@ def img_to_b64(path: Path) -> str | None:
 
 def unique_name(prefix: str, suffix: str) -> str:
     return f"{prefix}_{uuid4().hex}{suffix}"
+
+
+def ensure_runtime_dirs() -> None:
+    TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def make_runtime_dir(prefix: str) -> Path:
+    ensure_runtime_dirs()
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=TEMP_ROOT))
+
+
+def make_temp_png() -> Path:
+    ensure_runtime_dirs()
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False, dir=TEMP_ROOT) as tmp:
+        return Path(tmp.name)
+
+
+def safe_rmtree(path: Path | None) -> None:
+    if not path:
+        return
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+    except Exception:
+        pass
+
+
+def strip_internal_paths(result: dict) -> dict:
+    cleaned = dict(result)
+    for key in ("session_file", "cipher_path", "prev_path", "preview_path", "workdir"):
+        cleaned.pop(key, None)
+    return cleaned
 
 
 def parse_session_file(path: Path) -> dict[str, str]:
@@ -329,7 +361,7 @@ def summarize_encryption_result(lang: str, workdir: Path, cipher_preview: Path, 
 def build_bundle_zip(items: list[tuple[str, Path]]) -> str | None:
     if not items:
         return None
-    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_runtime_dirs()
     filename = unique_name("cipher_bundle", ".zip")
     bundle_path = DOWNLOADS_DIR / filename
     with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -343,7 +375,7 @@ def build_bundle_zip(items: list[tuple[str, Path]]) -> str | None:
 
 
 def copy_download_file(src: Path, prefix: str, suffix: str) -> str:
-    DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_runtime_dirs()
     filename = unique_name(prefix, suffix)
     dst = DOWNLOADS_DIR / filename
     shutil.copy2(src, dst)
@@ -356,8 +388,7 @@ def encrypt_c(input_png: Path, steps: int, passphrase: str, shared_session: dict
     if not ok:
         return result_error("C", msg)
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    tmpdir = Path(tempfile.mkdtemp(prefix="c_", dir=RESULTS_DIR))
+    tmpdir = make_runtime_dir("c_")
     out_cipher = tmpdir / "cipher_c.bin"
     out_preview = tmpdir / "cipher_c.png"
     out_recovered = tmpdir / "recovered_c.png"
@@ -413,8 +444,7 @@ def encrypt_java(input_png: Path, steps: int, passphrase: str, shared_session: d
     if not ok:
         return result_error("Java", msg)
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    tmpdir = Path(tempfile.mkdtemp(prefix="java_", dir=RESULTS_DIR))
+    tmpdir = make_runtime_dir("java_")
     out_cipher = tmpdir / "cipher_java.bin"
     out_preview = tmpdir / "cipher_java.png"
     out_recovered = tmpdir / "recovered_java.png"
@@ -470,8 +500,7 @@ def encrypt_cs(input_png: Path, steps: int, passphrase: str, shared_session: dic
     if not ok:
         return result_error("C#", msg)
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    tmpdir = Path(tempfile.mkdtemp(prefix="cs_", dir=RESULTS_DIR))
+    tmpdir = make_runtime_dir("cs_")
     out_cipher = tmpdir / "cipher_cs.bin"
     out_preview = tmpdir / "cipher_cs.png"
     out_recovered = tmpdir / "recovered_cs.png"
@@ -521,6 +550,10 @@ def run_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[st
     return finalize_result("C#", Path(enc["workdir"]), input_png, Path(enc["preview_path"]), out_recovered, wall)
 
 
+@app.route("/")
+def index():
+    return send_from_directory(BASE_DIR, "index.html")
+
 @app.route("/api/run", methods=["POST"])
 def api_run():
     if "image" not in request.files:
@@ -543,8 +576,7 @@ def api_run():
     img.save(buf, format="PNG")
     orig_b64 = base64.b64encode(buf.getvalue()).decode()
 
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False, dir=BASE_DIR) as tmp:
-        input_png = Path(tmp.name)
+    input_png = make_temp_png()
     try:
         img.save(input_png, format="PNG")
         original_histogram = compute_histogram(input_png)
@@ -558,7 +590,7 @@ def api_run():
         except OSError:
             pass
 
-    return jsonify({
+    response = {
         "mode": "full",
         "image_size": [height, width],
         "steps": steps,
@@ -566,7 +598,12 @@ def api_run():
         "original_img": orig_b64,
         "original_histogram": original_histogram,
         "results": [java_r, c_r, cs_r],
-    })
+    }
+    for result in (java_r, c_r, cs_r):
+        workdir = result.get("workdir")
+        if workdir:
+            safe_rmtree(Path(workdir))
+    return jsonify(response)
 
 
 @app.route("/api/encrypt-only", methods=["POST"])
@@ -591,8 +628,7 @@ def api_encrypt_only():
     img.save(buf, format="PNG")
     orig_b64 = base64.b64encode(buf.getvalue()).decode()
 
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False, dir=BASE_DIR) as tmp:
-        input_png = Path(tmp.name)
+    input_png = make_temp_png()
     try:
         img.save(input_png, format="PNG")
         original_histogram = compute_histogram(input_png)
@@ -612,17 +648,22 @@ def api_encrypt_only():
             bundle_items.append((result["lang"], Path(result["workdir"])))
     bundle_name = build_bundle_zip(bundle_items)
 
-    return jsonify({
+    response = {
         "mode": "encrypt",
         "image_size": [height, width],
         "steps": steps,
         "session_mode": session_mode,
         "original_img": orig_b64,
         "original_histogram": original_histogram,
-        "results": [java_r, c_r, cs_r],
-        "bundle_url": f"http://localhost:5000/api/download/{bundle_name}" if bundle_name else None,
+        "results": [strip_internal_paths(java_r), strip_internal_paths(c_r), strip_internal_paths(cs_r)],
+        "bundle_url": f"/api/download/{bundle_name}" if bundle_name else None,
         "bundle_name": bundle_name,
-    })
+    }
+    for result in (java_r, c_r, cs_r):
+        workdir = result.get("workdir")
+        if workdir:
+            safe_rmtree(Path(workdir))
+    return jsonify(response)
 
 
 @app.route("/api/decrypt-only", methods=["POST"])
@@ -636,8 +677,7 @@ def api_decrypt_only():
         if key not in request.files:
             return jsonify({"error": f"Falta el archivo requerido: {key}"}), 400
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    tmpdir = Path(tempfile.mkdtemp(prefix="decrypt_", dir=RESULTS_DIR))
+    tmpdir = make_runtime_dir("decrypt_")
     cipher_file = tmpdir / request.files["cipher"].filename
     prev_file = tmpdir / request.files["prev"].filename
     session_file = tmpdir / request.files["session"].filename
@@ -670,13 +710,15 @@ def api_decrypt_only():
         return jsonify({"error": err}), 500
 
     download_name = copy_download_file(out_recovered, "recovered_image", ".png")
-    return jsonify({
+    response = {
         "mode": "decrypt",
         "language": language,
         "recovered_img": img_to_b64(out_recovered),
-        "download_url": f"http://localhost:5000/api/download/{download_name}",
+        "download_url": f"/api/download/{download_name}",
         "download_name": download_name,
-    })
+    }
+    safe_rmtree(tmpdir)
+    return jsonify(response)
 
 
 @app.route("/api/health")
@@ -690,11 +732,24 @@ def health():
 
 @app.route("/api/download/<path:filename>")
 def api_download(filename: str):
-    return send_from_directory(DOWNLOADS_DIR, filename, as_attachment=True)
+    file_path = DOWNLOADS_DIR / filename
+    if not file_path.exists() or not file_path.is_file():
+        abort(404)
+
+    @after_this_request
+    def cleanup_download(response):
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return response
+
+    return send_file(file_path, as_attachment=True, download_name=file_path.name)
 
 
 if __name__ == "__main__":
     print(f"C dir:     {C_DIR}")
     print(f"Java dir:  {JAVA_DIR}")
     print(f"C# dir:    {CS_DIR}")
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)

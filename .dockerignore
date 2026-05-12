@@ -1,0 +1,15 @@
+.git
+.gitignore
+.codex
+.vscode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+bmp/
+Experimentos/
+v2/Resultados/
+v2/build/
+v2/__pycache__/
+*.log
+*.zip

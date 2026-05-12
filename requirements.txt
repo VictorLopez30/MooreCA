@@ -1,0 +1,4 @@
+Flask>=3.0,<4
+Flask-Cors>=5.0,<6
+Pillow>=10.0,<12
+gunicorn>=23.0,<24
