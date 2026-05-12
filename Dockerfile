@@ -48,4 +48,5 @@ RUN dotnet restore /app/v2/build/cs/Cifrado/Cifrado.csproj \
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "gunicorn --chdir /app/v2 --bind 0.0.0.0:${PORT:-5000} app:app"]
+CMD ["sh", "-c", "gunicorn --chdir /app/v2 --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 2 --timeout 300 app:app"]
+
