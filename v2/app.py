@@ -5,6 +5,7 @@ Usa las versiones mantenidas en ../c, ../java y ../cs.
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import math
 import os
@@ -16,7 +17,7 @@ import zipfile
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, abort, after_this_request, jsonify, request, send_file, send_from_directory
+from flask import Flask, abort, after_this_request, jsonify, render_template, request, send_file
 from flask_cors import CORS
 from PIL import Image
 
@@ -68,6 +69,27 @@ def img_to_b64(path: Path) -> str | None:
         return base64.b64encode(buf.getvalue()).decode()
     except Exception:
         return None
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(8192), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def describe_png(path: Path) -> dict[str, int | str]:
+    with Image.open(path) as img:
+        width, height = img.size
+        channels = len(img.getbands())
+    return {
+        "width": width,
+        "height": height,
+        "channels": channels,
+        "png_size_bytes": path.stat().st_size,
+        "sha256": sha256_file(path),
+    }
 
 
 def unique_name(prefix: str, suffix: str) -> str:
@@ -335,6 +357,8 @@ def finalize_result(lang: str, workdir: Path, original_png: Path, cipher_preview
         "recovery": compare_recovery(original_png, recovered_png),
         "cipher_img": img_to_b64(cipher_preview),
         "recovered_img": img_to_b64(recovered_png),
+        "preview_path": str(cipher_preview),
+        "workdir": str(workdir),
     }
 
 
@@ -552,7 +576,7 @@ def run_cs(input_png: Path, steps: int, passphrase: str, shared_session: dict[st
 
 @app.route("/")
 def index():
-    return send_from_directory(BASE_DIR, "index.html")
+    return render_template("index.html")
 
 @app.route("/api/run", methods=["POST"])
 def api_run():
@@ -590,6 +614,12 @@ def api_run():
         except OSError:
             pass
 
+    bundle_items: list[tuple[str, Path]] = []
+    for result in (java_r, c_r, cs_r):
+        if not result.get("error") and result.get("workdir"):
+            bundle_items.append((result["lang"], Path(result["workdir"])))
+    bundle_name = build_bundle_zip(bundle_items)
+
     response = {
         "mode": "full",
         "image_size": [height, width],
@@ -597,7 +627,9 @@ def api_run():
         "session_mode": session_mode,
         "original_img": orig_b64,
         "original_histogram": original_histogram,
-        "results": [java_r, c_r, cs_r],
+        "results": [strip_internal_paths(java_r), strip_internal_paths(c_r), strip_internal_paths(cs_r)],
+        "bundle_url": f"/api/download/{bundle_name}" if bundle_name else None,
+        "bundle_name": bundle_name,
     }
     for result in (java_r, c_r, cs_r):
         workdir = result.get("workdir")
@@ -668,10 +700,6 @@ def api_encrypt_only():
 
 @app.route("/api/decrypt-only", methods=["POST"])
 def api_decrypt_only():
-    language = request.form.get("language", "C")
-    if language not in {"C", "Java", "C#"}:
-        return jsonify({"error": "Lenguaje invalido."}), 400
-
     required = ("cipher", "prev", "session")
     for key in required:
         if key not in request.files:
@@ -685,37 +713,63 @@ def api_decrypt_only():
     request.files["prev"].save(prev_file)
     request.files["session"].save(session_file)
 
-    session = parse_session_file(session_file)
-    session["x_cur_path"] = str(cipher_file)
-    session["x_prev_path"] = str(prev_file)
-    out_recovered = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}.png"
+    base_session = parse_session_file(session_file)
+    base_session["x_cur_path"] = str(cipher_file)
+    base_session["x_prev_path"] = str(prev_file)
 
-    if language == "C":
-        ok, msg = ensure_c_binaries()
-        if not ok:
-            return jsonify({"error": msg}), 500
-        err = decrypt_c_from_session(session, out_recovered)
-    elif language == "Java":
-        ok, msg = ensure_java_build()
-        if not ok:
-            return jsonify({"error": msg}), 500
-        err = decrypt_java_from_session(session, out_recovered)
-    else:
-        ok, msg = ensure_cs_projects()
-        if not ok:
-            return jsonify({"error": msg}), 500
-        err = decrypt_cs_from_session(session, out_recovered)
+    results = []
+    for language in ("Java", "C", "C#"):
+        session = dict(base_session)
+        out_recovered = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}.png"
+        t0 = time.perf_counter()
 
-    if err:
-        return jsonify({"error": err}), 500
+        if language == "C":
+            ok, msg = ensure_c_binaries()
+            err = None if ok else msg
+            if ok:
+                err = decrypt_c_from_session(session, out_recovered)
+        elif language == "Java":
+            ok, msg = ensure_java_build()
+            err = None if ok else msg
+            if ok:
+                err = decrypt_java_from_session(session, out_recovered)
+        else:
+            ok, msg = ensure_cs_projects()
+            err = None if ok else msg
+            if ok:
+                err = decrypt_cs_from_session(session, out_recovered)
 
-    download_name = copy_download_file(out_recovered, "recovered_image", ".png")
+        elapsed = round(time.perf_counter() - t0, 4)
+        if err:
+            results.append({
+                "lang": language,
+                "elapsed_s": elapsed,
+                "status": "ERROR",
+                "error": err,
+            })
+            continue
+
+        meta = describe_png(out_recovered)
+        download_name = copy_download_file(out_recovered, f"recovered_image_{language.replace('#', 'sharp').lower()}", ".png")
+        results.append({
+            "lang": language,
+            "elapsed_s": elapsed,
+            "status": "OK",
+            "dimensions": {
+                "width": meta["width"],
+                "height": meta["height"],
+                "channels": meta["channels"],
+            },
+            "png_size_bytes": meta["png_size_bytes"],
+            "sha256": meta["sha256"],
+            "recovered_img": img_to_b64(out_recovered),
+            "download_url": f"/api/download/{download_name}",
+            "download_name": download_name,
+        })
+
     response = {
         "mode": "decrypt",
-        "language": language,
-        "recovered_img": img_to_b64(out_recovered),
-        "download_url": f"/api/download/{download_name}",
-        "download_name": download_name,
+        "results": results,
     }
     safe_rmtree(tmpdir)
     return jsonify(response)
