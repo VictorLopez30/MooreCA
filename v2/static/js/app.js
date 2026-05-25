@@ -2,6 +2,12 @@
 // ── State ──────────────────────────────────────────────────────────────
 let uploadedFile = null;
 let currentMode = 'full';
+let lastFullResultData = null;
+let lastDecryptResultData = null;
+
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['png', 'bmp', 'tif', 'tiff']);
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/png', 'image/bmp', 'image/tiff', 'image/x-tiff']);
+const UI_IMPLEMENTATION_ERROR = 'No fue posible completar esta implementación.';
 
 // ── Upload ────────────────────────────────────────────────────────────
 const dropZone  = document.getElementById('drop-zone');
@@ -29,6 +35,130 @@ document.querySelectorAll('.op-option input[name="operation-mode"]').forEach(inp
 });
 syncSessionModeUi();
 syncOperationModeUi();
+bindUiDialog();
+bindDecryptFilePickers();
+
+function bindDecryptFilePickers() {
+  [
+    ['decrypt-cipher', 'decrypt-cipher-name'],
+    ['decrypt-prev', 'decrypt-prev-name'],
+    ['decrypt-session', 'decrypt-session-name'],
+  ].forEach(([inputId, labelId]) => {
+    const input = document.getElementById(inputId);
+    const label = document.getElementById(labelId);
+    if (!input || !label || input.dataset.bound === '1') return;
+
+    const updateLabel = () => {
+      label.textContent = input.files && input.files[0]
+        ? input.files[0].name
+        : 'No se ha seleccionado ningún archivo';
+      lastDecryptResultData = null;
+      if (currentMode === 'decrypt') {
+        hideResultsView();
+      }
+    };
+
+    input.addEventListener('change', updateLabel);
+    updateLabel();
+    input.dataset.bound = '1';
+  });
+}
+
+function bindUiDialog() {
+  const dialog = document.getElementById('ui-dialog');
+  const closeBtn = document.getElementById('ui-dialog-close');
+  const primaryBtn = document.getElementById('ui-dialog-primary');
+  if (!dialog || !closeBtn || !primaryBtn || dialog.dataset.bound === '1') return;
+
+  const close = () => closeUiDialog();
+  closeBtn.addEventListener('click', close);
+  primaryBtn.addEventListener('click', close);
+  dialog.addEventListener('click', event => {
+    if (event.target === dialog) close();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !dialog.classList.contains('panel-hidden')) {
+      close();
+    }
+  });
+  dialog.dataset.bound = '1';
+}
+
+function showUiDialog(title, message) {
+  const dialog = document.getElementById('ui-dialog');
+  const titleEl = document.getElementById('ui-dialog-title');
+  const msgEl = document.getElementById('ui-dialog-message');
+  if (!dialog || !titleEl || !msgEl) return;
+  titleEl.textContent = title || 'Mensaje';
+  msgEl.textContent = message || '';
+  dialog.classList.remove('panel-hidden');
+  dialog.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('dialog-open');
+}
+
+function closeUiDialog() {
+  const dialog = document.getElementById('ui-dialog');
+  if (!dialog) return;
+  dialog.classList.add('panel-hidden');
+  dialog.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('dialog-open');
+}
+
+function resetImageSelection() {
+  uploadedFile = null;
+  lastFullResultData = null;
+  if (fileInput) fileInput.value = '';
+  const canvas = document.getElementById('preview-canvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+  const roundsBox = document.getElementById('rounds-recommendation');
+  if (roundsBox) {
+    roundsBox.innerHTML = '<strong>Nota:</strong> Selecciona una imagen para ver una recomendación de rondas según su tamaño.';
+  }
+  document.getElementById('encrypt-workspace').classList.add('panel-hidden');
+  hideResultsView();
+  if (currentMode === 'full') {
+    document.getElementById('run-btn').style.display = 'none';
+  }
+}
+
+function hideResultsView() {
+  const results = document.getElementById('results');
+  if (!results) return;
+  results.style.display = 'none';
+}
+
+function restoreResultsForCurrentMode() {
+  if (currentMode === 'full') {
+    if (lastFullResultData) {
+      renderResults(lastFullResultData, 'full');
+    } else {
+      hideResultsView();
+    }
+    return;
+  }
+
+  if (lastDecryptResultData) {
+    renderDecryptOnlyResult(lastDecryptResultData);
+  } else {
+    hideResultsView();
+  }
+}
+
+function validateImageFile(file) {
+  const extension = (file?.name?.split('.').pop() || '').toLowerCase();
+  const mimeType = (file?.type || '').toLowerCase();
+  const extOk = ALLOWED_IMAGE_EXTENSIONS.has(extension);
+  const mimeOk = !mimeType || ALLOWED_IMAGE_MIME_TYPES.has(mimeType);
+  if (extOk && mimeOk) return true;
+  resetImageSelection();
+  showUiDialog('Archivo no permitido', 'Selecciona una imagen con extensión PNG, BMP, TIF o TIFF para continuar con el cifrado.');
+  return false;
+}
 
 function getRecommendedRounds(width, height) {
   const pixels = width * height;
@@ -46,23 +176,36 @@ function updateRoundsRecommendation(width, height) {
 }
 
 function handleFile(file) {
+  if (!validateImageFile(file)) return;
+
   uploadedFile = file;
   const reader = new FileReader();
+  reader.onerror = () => {
+    resetImageSelection();
+    showUiDialog('No se pudo leer el archivo', 'El archivo seleccionado no pudo procesarse correctamente. Intenta nuevamente con una imagen PNG, BMP o TIFF válida.');
+  };
   reader.onload = ev => {
     const img = new Image();
+    img.onerror = () => {
+      resetImageSelection();
+      showUiDialog('Imagen no válida', 'El archivo seleccionado no pudo interpretarse como una imagen compatible. Verifica el formato e inténtalo de nuevo.');
+    };
     img.onload = () => {
       const canvas = document.getElementById('preview-canvas');
-      canvas.width = img.width; canvas.height = img.height;
+      canvas.width = img.width;
+      canvas.height = img.height;
       canvas.getContext('2d').drawImage(img, 0, 0);
       updateRoundsRecommendation(img.width, img.height);
       document.getElementById('encrypt-workspace').classList.toggle('panel-hidden', currentMode === 'decrypt' || !uploadedFile);
+      document.getElementById('run-btn').style.display = 'block';
+      lastFullResultData = null;
+      if (currentMode === 'full') {
+        hideResultsView();
+      }
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
-  document.getElementById('encrypt-workspace').classList.toggle('panel-hidden', currentMode === 'decrypt' || !uploadedFile);
-  document.getElementById('run-btn').style.display = 'block';
-  document.getElementById('results').style.display = 'none';
 }
 
 function syncSessionModeUi() {
@@ -93,6 +236,8 @@ function syncOperationModeUi() {
     currentMode === 'full'
       ? 'Cifrado de imagen con autómata celular reversible con vecindad de Moore'
       : 'Descifrado de archivos con autómata celular reversible con vecindad de Moore';
+
+  restoreResultsForCurrentMode();
 }
 
 // ── Run ───────────────────────────────────────────────────────────────
@@ -103,7 +248,7 @@ async function runOperation() {
     const prev = document.getElementById('decrypt-prev').files[0];
     const session = document.getElementById('decrypt-session').files[0];
     if (!cipher || !prev || !session) {
-      alert('Selecciona los tres archivos necesarios para descifrar.');
+      showUiDialog('Archivos incompletos', 'Selecciona los tres archivos requeridos para ejecutar el descifrado: .bin, .prev.bin y .session.txt.');
       return;
     }
   }
@@ -112,7 +257,7 @@ async function runOperation() {
 
   const prog = document.getElementById('progress');
   prog.style.display = 'flex';
-  document.getElementById('results').style.display = 'none';
+  hideResultsView();
 
   // Reset progress rows
   ['java','c','cs'].forEach(l => {
@@ -152,7 +297,7 @@ async function runOperation() {
     data = await resp.json();
   } catch(err) {
     console.warn('No se pudo ejecutar el backend', err);
-    alert(err.message || 'No se pudo ejecutar el backend.');
+    showUiDialog('Error de ejecución', err.message || 'No se pudo ejecutar el backend.');
     btn.disabled = false;
     prog.style.display = 'none';
     return;
@@ -175,9 +320,89 @@ async function runOperation() {
 
   await delay(350);
   prog.style.display = 'none';
-  if (currentMode === 'decrypt') renderDecryptOnlyResult(data);
-  else renderResults(data, currentMode);
+  if (currentMode === 'decrypt') {
+    lastDecryptResultData = data;
+    renderDecryptOnlyResult(data);
+  } else {
+    lastFullResultData = data;
+    renderResults(data, currentMode);
+  }
   btn.disabled = false;
+}
+
+let lightboxBound = false;
+let lightboxImages = [];
+let lightboxIndex = -1;
+
+function bindImageZoom() {
+  const grid = document.getElementById('images-grid');
+  const lightbox = document.getElementById('image-lightbox');
+  const lightboxImage = document.getElementById('lightbox-image');
+  const lightboxCaption = document.getElementById('lightbox-caption');
+  const closeBtn = document.getElementById('lightbox-close');
+  const prevBtn = document.getElementById('lightbox-prev');
+  const nextBtn = document.getElementById('lightbox-next');
+  if (!grid || !lightbox || !lightboxImage || !lightboxCaption || !closeBtn || !prevBtn || !nextBtn) return;
+
+  lightboxImages = Array.from(grid.querySelectorAll('.img-card img'));
+
+  const renderLightboxImage = () => {
+    if (lightboxIndex < 0 || lightboxIndex >= lightboxImages.length) return;
+    const img = lightboxImages[lightboxIndex];
+    lightboxImage.src = img.src;
+    lightboxImage.alt = img.alt || 'Vista ampliada';
+    const label = img.dataset.kind || img.closest('.img-card')?.querySelector('.img-label')?.textContent?.trim() || img.alt || 'Imagen';
+    const lang = (img.dataset.lang || '').trim();
+    lightboxCaption.textContent = lang ? `${lang} · ${label}` : label;
+  };
+
+  const openLightbox = (index) => {
+    lightboxImages = Array.from(grid.querySelectorAll('.img-card img'));
+    lightboxIndex = index;
+    renderLightboxImage();
+    lightbox.classList.remove('panel-hidden');
+    lightbox.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('lightbox-open');
+  };
+
+  const closeLightbox = () => {
+    lightbox.classList.add('panel-hidden');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImage.removeAttribute('src');
+    lightboxCaption.textContent = 'Vista ampliada';
+    lightboxIndex = -1;
+    document.body.classList.remove('lightbox-open');
+  };
+
+  const moveLightbox = (delta) => {
+    if (!lightboxImages.length) return;
+    lightboxIndex = (lightboxIndex + delta + lightboxImages.length) % lightboxImages.length;
+    renderLightboxImage();
+  };
+
+  if (!lightboxBound) {
+    grid.addEventListener('click', (event) => {
+      const target = event.target.closest('.img-card img');
+      if (!target) return;
+      const images = Array.from(grid.querySelectorAll('.img-card img'));
+      const index = images.indexOf(target);
+      if (index >= 0) openLightbox(index);
+    });
+
+    closeBtn.addEventListener('click', closeLightbox);
+    prevBtn.addEventListener('click', () => moveLightbox(-1));
+    nextBtn.addEventListener('click', () => moveLightbox(1));
+    lightbox.addEventListener('click', (event) => {
+      if (event.target === lightbox) closeLightbox();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (lightbox.classList.contains('panel-hidden')) return;
+      if (event.key === 'Escape') closeLightbox();
+      if (event.key === 'ArrowLeft') moveLightbox(-1);
+      if (event.key === 'ArrowRight') moveLightbox(1);
+    });
+    lightboxBound = true;
+  }
 }
 
 function setProgress(lang, state, msg) {
@@ -235,18 +460,18 @@ function renderResults(data, mode='full') {
       <div class="lang-images">
         <div class="lang-images-header" style="color:${m.color}">${m.icon||''} ${r.lang||'?'} ${recLabel}</div>
         ${r.error
-          ? `<div style="font-size:.72rem;color:#f87171">${r.error.substring(0,120)}</div>`
+          ? `<div style="font-size:.82rem;color:#f87171;font-weight:700">${UI_IMPLEMENTATION_ERROR}</div>`
           : `<div class="lang-images-row">
               <div class="img-card">
-                <img src="data:image/png;base64,${data.original_img||''}" alt="orig">
+                <img src="data:image/png;base64,${data.original_img||''}" alt="orig" data-lang="${r.lang||''}" data-kind="Original">
                 <div class="img-label">Original</div>
               </div>
               ${r.cipher_img ? `<div class="img-card">
-                <img src="data:image/png;base64,${r.cipher_img}" alt="cifrada">
+                <img src="data:image/png;base64,${r.cipher_img}" alt="cifrada" data-lang="${r.lang||''}" data-kind="Cifrada">
                 <div class="img-label">Cifrada</div>
               </div>` : ''}
               ${r.recovered_img ? `<div class="img-card">
-                <img src="data:image/png;base64,${r.recovered_img}" alt="descifrada">
+                <img src="data:image/png;base64,${r.recovered_img}" alt="descifrada" data-lang="${r.lang||''}" data-kind="Descifrada">
                 <div class="img-label">Descifrada</div>
               </div>` : ''}
             </div>`
@@ -265,7 +490,7 @@ function renderResults(data, mode='full') {
       <div class="perf-lang-label" style="color:${m.color}">${m.icon||''} ${r.lang||'?'}</div>
       <div class="perf-time-label">${r.error?'N/A':t.toFixed(4)+'s'}</div>
       <div class="perf-bar-track"><div class="perf-bar-fill" style="width:${r.error?0:pct}%;background:${m.color}"></div></div>
-      <div class="perf-rel">${r.error?'⚠ '+r.error.split('\n')[0].substring(0,55):isFastest?'🏆 más rápido':(t>0?(t/minT).toFixed(2)+'× vs más rápido':'—')}</div>
+      <div class="perf-rel">${r.error ? '⚠ Implementación no disponible' : isFastest ? '🏆 más rápido' : (t>0 ? (t/minT).toFixed(2)+'× vs más rápido' : '—')}</div>
     </div>`;
   }).join('');
 
@@ -278,7 +503,7 @@ function renderResults(data, mode='full') {
         <span class="metric-lang ${m.cls||''}">${m.icon||''} ${r.lang||'?'}</span>
         <span class="metric-time">${r.elapsed_s?r.elapsed_s.toFixed(4)+'s':'N/A'}</span>
       </div>
-      ${r.error?`<div style="font-size:.7rem;color:#f87171;line-height:1.5">${r.error.substring(0,120)}</div>`
+      ${r.error?`<div style="font-size:.82rem;color:#f87171;line-height:1.6;font-weight:700">${UI_IMPLEMENTATION_ERROR}</div>`
         :`<div class="metric-row"><a class="metric-link" href="#desc-entropia">Entropía</a><span class="metric-value" style="color:${m.color}">${e.toFixed(4)} bits</span></div>
          <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${ePct}%;background:${m.color}"></div></div>
          <div class="metric-row"><a class="metric-link" href="#desc-chi">Chi²</a><span class="metric-value">${chi.toFixed(1)}</span></div>
@@ -344,16 +569,7 @@ function renderResults(data, mode='full') {
       </tr>`).join('')}</tbody>
     </table></div>`;
 
-  // ── Log ──────────────────────────────────────────────────────────
-  let log='';
-  log += `[sesion] modo=${sessionMode==='shared'?'compartida':'independiente'}\n`;
-  log += `[operacion] modo=${mode==='full'?'cifrado':'descifrado'}\n`;
-  [jR,cR,csR].forEach(r=>{
-    const cls=r.lang==='Java'?'log-java':r.lang==='C'?'log-c':'log-cs';
-    if(r.error) log+=`<span class="${cls}">[${r.lang}] ERROR: ${r.error}\n</span>`;
-    else log+=`<span class="${cls}">[${r.lang}] elapsed=${r.elapsed_s}s, recovery=${r.recovery||'—'}\n</span>`;
-  });
-  document.getElementById('log-box').innerHTML = log||'(sin salida)';
+
 
   if (mode === 'full') {
     if (data.bundle_url) {
@@ -369,6 +585,7 @@ function renderResults(data, mode='full') {
       `;
     }
   }
+  bindImageZoom();
 }
 
 function renderDecryptOnlyResult(data) {
@@ -394,10 +611,10 @@ function renderDecryptOnlyResult(data) {
     <div class="lang-images">
       <div class="lang-images-header" style="color:${meta.color||'var(--text)'}">${meta.icon||''} ${r.lang || '?'}</div>
       ${r.error
-        ? `<div style="font-size:.72rem;color:#f87171;margin-bottom:.7rem">${String(r.error).substring(0,180)}</div>`
+        ? `<div style="font-size:.82rem;color:#f87171;margin-bottom:.7rem;font-weight:700">${UI_IMPLEMENTATION_ERROR}</div>`
         : `<div class="lang-images-row">
             <div class="img-card">
-              <img src="data:image/png;base64,${r.recovered_img||''}" alt="descifrada">
+              <img src="data:image/png;base64,${r.recovered_img||''}" alt="descifrada" data-lang="${r.lang||''}" data-kind="Descifrada">
               <div class="img-label">Descifrada</div>
             </div>
           </div>`}
@@ -406,18 +623,11 @@ function renderDecryptOnlyResult(data) {
         <div><strong>Estado:</strong> ${status}</div>
         <div><strong>Dimensiones:</strong> ${dims}</div>
         <div><strong>Tamaño PNG:</strong> ${pngSize}</div>
-        <div style="word-break:break-all"><strong>SHA-256:</strong> ${r.sha256 || '—'}</div>
+        <div style="word-break:break-all"><strong>SHA-256 PNG:</strong> ${r.sha256_png || '—'}</div>
+        <div style="word-break:break-all"><strong>SHA-256 RGB:</strong> ${r.sha256_rgb || '—'}</div>
       </div>
     </div>`;
   }).join('');
-  let log='[operacion] modo=descifrado\n';
-  [jR,cR,csR].forEach(r => {
-    if (!r || !r.lang) return;
-    log += r.error
-      ? `[${r.lang}] ERROR: ${r.error}\n`
-      : `[${r.lang}] elapsed=${r.elapsed_s ?? '—'}s, descifrado=OK\n`;
-  });
-  document.getElementById('log-box').textContent = log;
   document.getElementById('encrypt-actions').innerHTML = '';
   const actions = document.getElementById('decrypt-actions');
   const buttons = [jR, cR, csR].filter(r => r.download_url).map(r =>
@@ -427,6 +637,7 @@ function renderDecryptOnlyResult(data) {
   actions.querySelectorAll('.decrypt-download-btn').forEach(btn => {
     btn.addEventListener('click', () => saveUrlWithPicker(btn.dataset.url, btn.dataset.name));
   });
+  bindImageZoom();
 }
 
 function setResultSectionsForMode(mode) {
@@ -464,7 +675,7 @@ async function saveUrlWithPicker(url, suggestedName) {
     link.remove();
     setTimeout(() => URL.revokeObjectURL(link.href), 5000);
   } catch (err) {
-    alert(err.message || 'No se pudo guardar el archivo.');
+    showUiDialog('No se pudo guardar el archivo', err.message || 'No se pudo guardar el archivo.');
   }
 }
 

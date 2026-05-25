@@ -79,6 +79,12 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_rgb_pixels(path: Path) -> str:
+    with Image.open(path) as img:
+        rgb = img.convert("RGB")
+        return hashlib.sha256(rgb.tobytes()).hexdigest()
+
+
 def describe_png(path: Path) -> dict[str, int | str]:
     with Image.open(path) as img:
         width, height = img.size
@@ -88,7 +94,8 @@ def describe_png(path: Path) -> dict[str, int | str]:
         "height": height,
         "channels": channels,
         "png_size_bytes": path.stat().st_size,
-        "sha256": sha256_file(path),
+        "sha256_png": sha256_file(path),
+        "sha256_rgb": sha256_rgb_pixels(path),
     }
 
 
@@ -761,7 +768,8 @@ def api_decrypt_only():
                 "channels": meta["channels"],
             },
             "png_size_bytes": meta["png_size_bytes"],
-            "sha256": meta["sha256"],
+            "sha256_png": meta["sha256_png"],
+            "sha256_rgb": meta["sha256_rgb"],
             "recovered_img": img_to_b64(out_recovered),
             "download_url": f"/api/download/{download_name}",
             "download_name": download_name,
