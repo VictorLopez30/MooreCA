@@ -166,6 +166,59 @@ body.dialog-open{overflow:hidden;}
 .export-form{display:grid;gap:1rem;}
 .export-form select,
 .export-form input{width:100%;}
+.export-form label{
+  display:block;
+  margin-bottom:.45rem;
+  font-size:.95rem;
+  font-weight:700;
+  color:#000000;
+}
+.export-form input,
+.export-form select{
+  min-height:48px;
+  border:1px solid #9dbcf2;
+  border-radius:12px;
+  background:#ffffff;
+  color:#000000;
+  font-family:"Manrope",sans-serif;
+  font-size:1rem;
+  font-weight:600;
+  padding:.8rem .95rem;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+  transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.export-form select{
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  cursor:pointer;
+  padding-right:3rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #1d4ed8 50%),
+    linear-gradient(135deg, #1d4ed8 50%, transparent 50%),
+    linear-gradient(to right, #dbeafe, #dbeafe);
+  background-position:
+    calc(100% - 22px) calc(50% - 3px),
+    calc(100% - 16px) calc(50% - 3px),
+    calc(100% - 46px) 50%;
+  background-size:6px 6px, 6px 6px, 1px 24px;
+  background-repeat:no-repeat;
+}
+.export-form input::placeholder{
+  color:#475569;
+  font-weight:500;
+}
+.export-form input:focus,
+.export-form select:focus{
+  outline:none;
+  border-color:#2563eb;
+  box-shadow:0 0 0 4px rgba(37,99,235,.14);
+  background-color:#fdfefe;
+}
+.export-form select:hover,
+.export-form input:hover{
+  border-color:#7aa6ee;
+}
 
 #results > .section-title{margin-top:3rem !important;}
 #results > .section-title:first-child{margin-top:0 !important;}
