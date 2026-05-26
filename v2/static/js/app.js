@@ -4,6 +4,7 @@ let uploadedFile = null;
 let currentMode = 'full';
 let lastFullResultData = null;
 let lastDecryptResultData = null;
+let exportDialogState = { results: [], initialized: false };
 
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['png', 'bmp', 'tif', 'tiff']);
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/png', 'image/bmp', 'image/tiff', 'image/x-tiff']);
@@ -37,6 +38,7 @@ syncSessionModeUi();
 syncOperationModeUi();
 bindUiDialog();
 bindDecryptFilePickers();
+bindExportDialog();
 
 function bindDecryptFilePickers() {
   [
@@ -84,6 +86,40 @@ function bindUiDialog() {
   dialog.dataset.bound = '1';
 }
 
+function bindExportDialog() {
+  const dialog = document.getElementById('export-dialog');
+  const closeBtn = document.getElementById('export-dialog-close');
+  const cancelBtn = document.getElementById('export-dialog-cancel');
+  const submitBtn = document.getElementById('export-dialog-submit');
+  const languageSelect = document.getElementById('export-language');
+  const filenameInput = document.getElementById('export-filename');
+  if (!dialog || !closeBtn || !cancelBtn || !submitBtn || !languageSelect || !filenameInput || exportDialogState.initialized) return;
+
+  const close = () => closeExportDialog();
+  closeBtn.addEventListener('click', close);
+  cancelBtn.addEventListener('click', close);
+  dialog.addEventListener('click', event => {
+    if (event.target === dialog) close();
+  });
+  languageSelect.addEventListener('change', () => {
+    const selected = exportDialogState.results.find(item => item.lang === languageSelect.value);
+    if (!selected) return;
+    if (!filenameInput.dataset.userEdited || !filenameInput.value.trim()) {
+      filenameInput.value = selected.defaultName;
+    }
+  });
+  filenameInput.addEventListener('input', () => {
+    filenameInput.dataset.userEdited = filenameInput.value.trim() ? '1' : '';
+  });
+  submitBtn.addEventListener('click', submitExportDialog);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !dialog.classList.contains('panel-hidden')) {
+      close();
+    }
+  });
+  exportDialogState.initialized = true;
+}
+
 function showUiDialog(title, message) {
   const dialog = document.getElementById('ui-dialog');
   const titleEl = document.getElementById('ui-dialog-title');
@@ -102,6 +138,96 @@ function closeUiDialog() {
   dialog.classList.add('panel-hidden');
   dialog.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('dialog-open');
+}
+
+function openExportDialog(results) {
+  const dialog = document.getElementById('export-dialog');
+  const languageSelect = document.getElementById('export-language');
+  const filenameInput = document.getElementById('export-filename');
+  const formatSelect = document.getElementById('export-format');
+  if (!dialog || !languageSelect || !filenameInput || !formatSelect) return;
+
+  const exportable = (results || [])
+    .filter(item => item.download_url && item.download_name && item.lang)
+    .map(item => ({
+      lang: item.lang,
+      sourceName: item.download_name,
+      defaultName: `imagen_descifrada_${item.lang.toLowerCase().replace('#', 'sharp')}`,
+      outputFormat: item.output_format || 'png',
+      outputLabel: item.output_format_label || 'PNG',
+    }));
+
+  if (!exportable.length) {
+    showUiDialog('No hay archivos exportables', 'No hay imágenes descifradas disponibles para exportar en este momento.');
+    return;
+  }
+
+  exportDialogState.results = exportable;
+  languageSelect.innerHTML = exportable
+    .map(item => `<option value="${item.lang}">${item.lang}</option>`)
+    .join('');
+  filenameInput.value = exportable[0].defaultName;
+  filenameInput.dataset.userEdited = '';
+  const originalOption = formatSelect.querySelector('option[value="png"]');
+  if (originalOption) {
+    originalOption.value = exportable[0].outputFormat;
+    originalOption.textContent = `${exportable[0].outputLabel} (original)`;
+  }
+  formatSelect.value = exportable[0].outputFormat;
+  dialog.classList.remove('panel-hidden');
+  dialog.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('dialog-open');
+}
+
+function closeExportDialog() {
+  const dialog = document.getElementById('export-dialog');
+  if (!dialog) return;
+  dialog.classList.add('panel-hidden');
+  dialog.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('dialog-open');
+}
+
+async function submitExportDialog() {
+  const languageSelect = document.getElementById('export-language');
+  const filenameInput = document.getElementById('export-filename');
+  const formatSelect = document.getElementById('export-format');
+  const submitBtn = document.getElementById('export-dialog-submit');
+  if (!languageSelect || !filenameInput || !formatSelect || !submitBtn) return;
+
+  const selected = exportDialogState.results.find(item => item.lang === languageSelect.value);
+  if (!selected) {
+    showUiDialog('Implementación no disponible', 'Selecciona una implementación válida para exportar la imagen.');
+    return;
+  }
+
+  const rawName = filenameInput.value.trim();
+  if (!rawName) {
+    showUiDialog('Nombre inválido', 'Escribe un nombre de archivo para exportar la imagen descifrada.');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  try {
+    const resp = await fetch('/api/export-recovered', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_name: selected.sourceName,
+        output_name: rawName,
+        output_format: formatSelect.value,
+      }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      throw new Error(data.error || 'No se pudo preparar la exportación.');
+    }
+    closeExportDialog();
+    await saveUrlWithPicker(data.download_url, data.download_name || `${rawName}.${formatSelect.value}`);
+  } catch (err) {
+    showUiDialog('No se pudo exportar la imagen', err.message || 'No se pudo exportar la imagen.');
+  } finally {
+    submitBtn.disabled = false;
+  }
 }
 
 function resetImageSelection() {
@@ -605,7 +731,8 @@ function renderDecryptOnlyResult(data) {
   document.getElementById('images-grid').innerHTML = [jR, cR, csR].map(r => {
     const meta = LM[r.lang] || {};
     const dims = r.dimensions ? `${r.dimensions.width} x ${r.dimensions.height} x ${r.dimensions.channels}` : '—';
-    const pngSize = Number.isFinite(r.png_size_bytes) ? `${(r.png_size_bytes / 1024).toFixed(2)} KB` : '—';
+    const outputLabel = r.output_format_label || 'PNG';
+    const outputSize = Number.isFinite(r.output_size_bytes) ? `${(r.output_size_bytes / 1024).toFixed(2)} KB` : '—';
     const status = r.status || (r.error ? 'ERROR' : 'OK');
     return `
     <div class="lang-images">
@@ -622,20 +749,20 @@ function renderDecryptOnlyResult(data) {
         <div><strong>Tiempo:</strong> ${r.elapsed_s ?? '—'} s</div>
         <div><strong>Estado:</strong> ${status}</div>
         <div><strong>Dimensiones:</strong> ${dims}</div>
-        <div><strong>Tamaño PNG:</strong> ${pngSize}</div>
-        <div style="word-break:break-all"><strong>SHA-256 PNG:</strong> ${r.sha256_png || '—'}</div>
+        <div><strong>Tamaño ${outputLabel}:</strong> ${outputSize}</div>
+        <div style="word-break:break-all"><strong>SHA-256 ${outputLabel}:</strong> ${r.sha256_output || '—'}</div>
         <div style="word-break:break-all"><strong>SHA-256 RGB:</strong> ${r.sha256_rgb || '—'}</div>
       </div>
     </div>`;
   }).join('');
   document.getElementById('encrypt-actions').innerHTML = '';
   const actions = document.getElementById('decrypt-actions');
-  const buttons = [jR, cR, csR].filter(r => r.download_url).map(r =>
-    `<button class="secondary-btn decrypt-download-btn" data-url="${r.download_url}" data-name="${r.download_name || ('imagen_descifrada_' + r.lang + '.png')}">Guardar imagen descifrada ${r.lang}</button>`
-  );
-  actions.innerHTML = buttons.join('');
-  actions.querySelectorAll('.decrypt-download-btn').forEach(btn => {
-    btn.addEventListener('click', () => saveUrlWithPicker(btn.dataset.url, btn.dataset.name));
+  const exportableResults = [jR, cR, csR].filter(r => r.download_url && r.download_name);
+  actions.innerHTML = exportableResults.length
+    ? '<button class="secondary-btn" id="open-export-dialog-btn">Guardar imagen descifrada</button>'
+    : '';
+  document.getElementById('open-export-dialog-btn')?.addEventListener('click', () => {
+    openExportDialog(exportableResults);
   });
   bindImageZoom();
 }
@@ -767,13 +894,23 @@ function renderHistogram(id){
   const active=Object.entries(st.channels).filter(([,v])=>v).map(([k])=>k);
   const maxV=Math.max(1,...active.flatMap(ch=>(st.hist[ch]||[]).slice(minBin,maxBin+1)));
   ctx.clearRect(0,0,W,H);
-  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+
+  ctx.strokeStyle='rgba(148,163,184,.28)';ctx.lineWidth=1;
   for(let i=0;i<=5;i++){
     const y=pad.t+ph*(i/5);
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.28)';ctx.font="9px 'IBM Plex Mono'";
-    ctx.fillText(Math.round(maxV-(maxV*i/5)).toString(),4,y+3);
+    ctx.fillStyle='rgba(15,23,42,.78)';ctx.font="9px 'IBM Plex Mono'";
+    ctx.fillText(Math.round(maxV-(maxV*i/5)).toString(),6,y+3);
   }
+
+  ctx.strokeStyle='rgba(15,23,42,.72)';
+  ctx.lineWidth=1.15;
+  ctx.beginPath();
+  ctx.moveTo(pad.l, pad.t);
+  ctx.lineTo(pad.l, pad.t + ph);
+  ctx.lineTo(pad.l + pw, pad.t + ph);
+  ctx.stroke();
+
   const xForBin=bin=>pad.l+((bin-st.min)/(st.max-st.min))*pw;
   const yForVal=v=>pad.t+ph-(v/maxV)*ph;
   const drawChannel=(ch,color)=>{
@@ -786,14 +923,45 @@ function renderHistogram(id){
     }
     ctx.strokeStyle=color;ctx.lineWidth=1.8;ctx.globalAlpha=.9;ctx.stroke();ctx.globalAlpha=1;
   };
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(pad.l, pad.t, pw, ph);
+  ctx.clip();
   drawChannel('r','#ff0000');drawChannel('g','#00ff00');drawChannel('b','#0000ff');
-  ctx.fillStyle='rgba(255,255,255,.38)';ctx.font="10px 'IBM Plex Mono'";
-  ctx.fillText(Math.round(st.min).toString(),pad.l,H-10);
-  ctx.fillText(Math.round(st.max).toString(),pad.l+pw-24,H-10);
+  ctx.restore();
+  ctx.fillStyle='rgba(15,23,42,.82)';
+  ctx.font="10px 'IBM Plex Mono'";
+  const xTickCount = 9;
+  const xTicks = Array.from({ length: xTickCount }, (_, i) =>
+    st.min + ((st.max - st.min) * i) / (xTickCount - 1)
+  );
+  xTicks.forEach((value, index) => {
+    const rounded = Math.round(value);
+    const x = xForBin(value);
+    const text = String(rounded);
+    const width = ctx.measureText(text).width;
+    let tx = x - width / 2;
+    if (index === 0) tx = pad.l;
+    if (index === xTicks.length - 1) tx = pad.l + pw - width;
+    tx = Math.max(pad.l, Math.min(pad.l + pw - width, tx));
+    ctx.beginPath();
+    ctx.moveTo(x, pad.t + ph);
+    ctx.lineTo(x, pad.t + ph + 5);
+    ctx.strokeStyle='rgba(15,23,42,.72)';
+    ctx.lineWidth=1;
+    ctx.stroke();
+    ctx.fillText(text, tx, H - 10);
+  });
+
   if(st.hover!==null){
     const hx=Math.max(pad.l,Math.min(pad.l+pw,st.hover));
     const bin=Math.max(0,Math.min(255,Math.round(st.min+((hx-pad.l)/pw)*(st.max-st.min))));
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad.l, pad.t, pw, ph);
+    ctx.clip();
     ctx.strokeStyle='rgba(0,0,0,.55)';ctx.beginPath();ctx.moveTo(hx,pad.t);ctx.lineTo(hx,pad.t+ph);ctx.stroke();
+    ctx.restore();
     const parts=[];
     if(st.channels.r) parts.push(`R:${st.hist.r[bin]||0}`);
     if(st.channels.g) parts.push(`G:${st.hist.g[bin]||0}`);

@@ -57,14 +57,14 @@
               <input type="radio" name="session-mode" value="independent" checked>
               <div class="session-copy">
                 <strong>Sesión independiente</strong>
-                <span>Cada implementación genera su propia sesión X25519/HKDF.</span>
+                <span>Cada implementación genera su propia sesión criptografica.</span>
               </div>
             </label>
             <label class="session-option">
               <input type="radio" name="session-mode" value="shared">
               <div class="session-copy">
                 <strong>Sesión compartida</strong>
-                <span>El backend genera un único `Z` y `salt` y los reutiliza en Java, C y C#.</span>
+                <span>Se genera una unica sesion criptografica para todas las implementaciones</span>
               </div>
             </label>
           </div>
@@ -229,6 +229,39 @@
         <p class="ui-dialog-message" id="ui-dialog-message"></p>
         <div class="ui-dialog-actions">
           <button type="button" class="secondary-btn ui-dialog-primary" id="ui-dialog-primary">Entendido</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="export-dialog" class="ui-dialog panel-hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title">
+      <div class="ui-dialog-card export-dialog-card">
+        <button type="button" class="ui-dialog-close" id="export-dialog-close" aria-label="Cerrar exportación">×</button>
+        <div class="ui-dialog-badge">Exportar imagen descifrada</div>
+        <h2 class="ui-dialog-title" id="export-dialog-title">Configurar exportación</h2>
+        <div class="export-form">
+          <div class="param-field">
+            <label for="export-language">Implementación</label>
+            <select id="export-language"></select>
+          </div>
+          <div class="param-field">
+            <label for="export-filename">Nombre del archivo</label>
+            <input type="text" id="export-filename" maxlength="120" placeholder="imagen_descifrada">
+          </div>
+          <div class="param-field">
+            <label for="export-format">Formato de salida</label>
+            <select id="export-format">
+              <option value="png">Formato original</option>
+              <option value="jpg">JPG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="webp">WEBP</option>
+              <option value="bmp">BMP</option>
+              <option value="tiff">TIFF</option>
+            </select>
+          </div>
+        </div>
+        <div class="ui-dialog-actions">
+          <button type="button" class="secondary-btn" id="export-dialog-cancel">Cancelar</button>
+          <button type="button" class="secondary-btn ui-dialog-primary" id="export-dialog-submit">Guardar imagen</button>
         </div>
       </div>
     </div>

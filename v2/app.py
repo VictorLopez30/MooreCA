@@ -41,6 +41,14 @@ JAVA_BUILD_DIR = BUILD_DIR / "java"
 CS_CIFRADO_PROJ = BUILD_DIR / "cs" / "Cifrado" / "Cifrado.csproj"
 CS_DESCIFRADO_PROJ = BUILD_DIR / "cs" / "Descifrado" / "Descifrado.csproj"
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".bmp", ".tif", ".tiff"}
+EXPORT_FORMATS = {
+    "png": ("PNG", ".png", "image/png"),
+    "jpg": ("JPEG", ".jpg", "image/jpeg"),
+    "jpeg": ("JPEG", ".jpeg", "image/jpeg"),
+    "bmp": ("BMP", ".bmp", "image/bmp"),
+    "tiff": ("TIFF", ".tiff", "image/tiff"),
+    "webp": ("WEBP", ".webp", "image/webp"),
+}
 
 
 def tool_exists(name: str) -> bool:
@@ -103,6 +111,11 @@ def describe_png(path: Path) -> dict[str, int | str]:
 
 def unique_name(prefix: str, suffix: str) -> str:
     return f"{prefix}_{uuid4().hex}{suffix}"
+
+
+def sanitize_output_name(name: str) -> str:
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in name.strip())
+    return cleaned.strip("._") or "imagen_descifrada"
 
 
 def ensure_runtime_dirs() -> None:
@@ -177,6 +190,47 @@ def parse_session_file(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         data[key] = value
     return data
+
+
+def rewrite_session_file(path: Path, entries: dict[str, str], remove_keys: set[str] | None = None) -> None:
+    if not path.exists():
+        return
+    data = parse_session_file(path)
+    for key in remove_keys or set():
+        data.pop(key, None)
+    for key, value in entries.items():
+        if value:
+            data[key] = value
+
+    lines = ["# Sesion de cifrado"]
+    preferred_order = [
+        "ancho",
+        "alto",
+        "canales",
+        "rondas",
+        "original_format",
+        "z_hex",
+        "salt_hex",
+    ]
+    used = set()
+    for key in preferred_order:
+        if key in data:
+            lines.append(f"{key}={data[key]}")
+            used.add(key)
+    for key in sorted(k for k in data.keys() if k not in used):
+        lines.append(f"{key}={data[key]}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def rewrite_session_files_in_workdir(workdir: Path, original_format: str) -> None:
+    if not workdir.exists():
+        return
+    for session_path in workdir.glob("*.session.txt"):
+        rewrite_session_file(
+            session_path,
+            {"original_format": original_format},
+            remove_keys={"x_prev_path", "x_cur_path"},
+        )
 
 
 def new_shared_session() -> dict[str, str]:
@@ -458,6 +512,40 @@ def copy_download_file(session_id: str, src: Path, prefix: str, suffix: str) -> 
     return filename
 
 
+def convert_image_file(src: Path, target_format: str, dst: Path) -> Path:
+    fmt_key = target_format.lower()
+    if fmt_key not in EXPORT_FORMATS:
+        raise ValueError("Formato de salida no soportado.")
+    pil_format, _suffix, _mime = EXPORT_FORMATS[fmt_key]
+    with Image.open(src) as img:
+        if pil_format == "JPEG":
+            img = img.convert("RGB")
+            img.save(dst, format=pil_format, quality=95, optimize=True)
+        else:
+            img.save(dst, format=pil_format)
+    return dst
+
+
+def export_converted_image(session_id: str, source_name: str, output_name: str, output_format: str) -> tuple[str, str]:
+    ensure_session_dirs(session_id)
+    fmt_key = output_format.lower()
+    if fmt_key not in EXPORT_FORMATS:
+        raise ValueError("Formato de salida no soportado.")
+
+    source_path = session_download_root(session_id) / Path(source_name).name
+    if not source_path.exists() or not source_path.is_file():
+        raise FileNotFoundError("La imagen base para exportación ya no está disponible.")
+
+    pil_format, suffix, _mime = EXPORT_FORMATS[fmt_key]
+    safe_name = sanitize_output_name(output_name)
+    export_filename = unique_name(safe_name, suffix)
+    export_path = session_download_root(session_id) / export_filename
+
+    convert_image_file(source_path, fmt_key, export_path)
+
+    return export_filename, export_filename
+
+
 def encrypt_c(session_id: str, input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
     del passphrase
     ok, msg = ensure_c_binaries()
@@ -647,6 +735,7 @@ def api_run():
     f = request.files["image"]
     if not allowed_image_filename(f.filename):
         return jsonify({"error": "Formato no soportado. Usa PNG, BMP o TIFF."}), 400
+    original_format = Path(f.filename).suffix.lower().lstrip(".")
 
     img = Image.open(f.stream).convert("RGB")
     width, height = img.size
@@ -674,7 +763,9 @@ def api_run():
     bundle_items: list[tuple[str, Path]] = []
     for result in (java_r, c_r, cs_r):
         if not result.get("error") and result.get("workdir"):
-            bundle_items.append((result["lang"], Path(result["workdir"])))
+            workdir = Path(result["workdir"])
+            rewrite_session_files_in_workdir(workdir, original_format)
+            bundle_items.append((result["lang"], workdir))
     bundle_name = build_bundle_zip(session_id, bundle_items)
 
     response = {
@@ -708,6 +799,7 @@ def api_encrypt_only():
     f = request.files["image"]
     if not allowed_image_filename(f.filename):
         return jsonify({"error": "Formato no soportado. Usa PNG, BMP o TIFF."}), 400
+    original_format = Path(f.filename).suffix.lower().lstrip(".")
 
     img = Image.open(f.stream).convert("RGB")
     width, height = img.size
@@ -735,7 +827,9 @@ def api_encrypt_only():
     bundle_items: list[tuple[str, Path]] = []
     for result in (java_r, c_r, cs_r):
         if not result.get("error") and result.get("workdir"):
-            bundle_items.append((result["lang"], Path(result["workdir"])))
+            workdir = Path(result["workdir"])
+            rewrite_session_files_in_workdir(workdir, original_format)
+            bundle_items.append((result["lang"], workdir))
     bundle_name = build_bundle_zip(session_id, bundle_items)
 
     response = {
@@ -773,10 +867,16 @@ def api_decrypt_only():
     base_session = parse_session_file(session_file)
     base_session["x_cur_path"] = str(cipher_file)
     base_session["x_prev_path"] = str(prev_file)
+    original_format = base_session.get("original_format", "png").lower()
+    if original_format not in EXPORT_FORMATS:
+        original_format = "png"
+    output_suffix = EXPORT_FORMATS[original_format][1]
+    output_label = original_format.upper()
 
     def decrypt_language(language: str) -> dict:
         session_data = dict(base_session)
         out_recovered = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}.png"
+        out_exported = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}{output_suffix}"
         t0 = time.perf_counter()
 
         if language == "C":
@@ -804,8 +904,9 @@ def api_decrypt_only():
                 "error": err,
             }
 
-        meta = describe_png(out_recovered)
-        download_name = copy_download_file(session_id, out_recovered, f"recovered_image_{language.replace('#', 'sharp').lower()}", ".png")
+        convert_image_file(out_recovered, original_format, out_exported)
+        meta = describe_png(out_exported)
+        download_name = copy_download_file(session_id, out_exported, f"recovered_image_{language.replace('#', 'sharp').lower()}", output_suffix)
         return {
             "lang": language,
             "elapsed_s": elapsed,
@@ -815,10 +916,12 @@ def api_decrypt_only():
                 "height": meta["height"],
                 "channels": meta["channels"],
             },
-            "png_size_bytes": meta["png_size_bytes"],
-            "sha256_png": meta["sha256_png"],
+            "output_format": original_format,
+            "output_format_label": output_label,
+            "output_size_bytes": meta["png_size_bytes"],
+            "sha256_output": meta["sha256_png"],
             "sha256_rgb": meta["sha256_rgb"],
-            "recovered_img": img_to_b64(out_recovered),
+            "recovered_img": img_to_b64(out_exported),
             "download_url": f"/api/download/{download_name}",
             "download_name": download_name,
         }
@@ -842,6 +945,36 @@ def health():
         "java": "ready" if JAVA_DIR.exists() and tool_exists("javac") and tool_exists("java") else "not compiled",
         "c": "ready" if C_DIR.exists() and tool_exists("gcc") else "not compiled",
         "csharp": "ready" if CS_DIR.exists() and tool_exists("dotnet") else "not compiled",
+    })
+
+
+@app.route("/api/export-recovered", methods=["POST"])
+def api_export_recovered():
+    session_id = get_session_id()
+    payload = request.get_json(silent=True) or {}
+    source_name = str(payload.get("source_name", "")).strip()
+    output_name = str(payload.get("output_name", "")).strip()
+    output_format = str(payload.get("output_format", "png")).strip().lower()
+
+    if not source_name:
+        return jsonify({"error": "No se indicó la imagen base para exportar."}), 400
+    if not output_name:
+        return jsonify({"error": "Indica un nombre de archivo para la exportación."}), 400
+    if output_format not in EXPORT_FORMATS:
+        return jsonify({"error": "Formato de salida no soportado."}), 400
+
+    try:
+        export_filename, download_name = export_converted_image(session_id, source_name, output_name, output_format)
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception:
+        return jsonify({"error": "No se pudo convertir la imagen al formato solicitado."}), 500
+
+    return jsonify({
+        "download_url": f"/api/download/{export_filename}",
+        "download_name": download_name,
     })
 
 
