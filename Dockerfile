@@ -44,9 +44,10 @@ PY2
 RUN dotnet restore /app/v2/build/cs/Cifrado/Cifrado.csproj \
     && dotnet build /app/v2/build/cs/Cifrado/Cifrado.csproj -c Release --no-restore \
     && dotnet restore /app/v2/build/cs/Descifrado/Descifrado.csproj \
-    && dotnet build /app/v2/build/cs/Descifrado/Descifrado.csproj -c Release --no-restore
+    && dotnet build /app/v2/build/cs/Descifrado/Descifrado.csproj -c Release --no-restore \
+    && dotnet restore /app/v2/build/cs/Completo/Completo.csproj \
+    && dotnet build /app/v2/build/cs/Completo/Completo.csproj -c Release --no-restore
 
 EXPOSE 5000
 
 CMD ["sh", "-c", "gunicorn --chdir /app/v2 --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 2 --timeout 300 app:app"]
-

@@ -360,8 +360,8 @@ function syncOperationModeUi() {
 
   document.getElementById('page-subtitle').textContent =
     currentMode === 'full'
-      ? 'Cifrado de imagen con autómata celular reversible con vecindad de Moore'
-      : 'Descifrado de archivos con autómata celular reversible con vecindad de Moore';
+      ? 'Compara el cifrado y el descifrado de imágenes mediante un autómata celular reversible con vecindad de Moore en Java, C y C#.'
+      : 'Recupera imágenes a partir de los archivos generados por el sistema de cifrado con autómata celular reversible con vecindad de Moore.';
 
   restoreResultsForCurrentMode();
 }
@@ -670,14 +670,12 @@ function renderResults(data, mode='full') {
   const last=r=>(r.metrics||[])[(r.metrics||[]).length-1]||{};
   const rows=[
     {f:'Modo sesión',  j:sessionMode==='shared'?'Compartida':'Independiente', c:sessionMode==='shared'?'Compartida':'Independiente', cs:sessionMode==='shared'?'Compartida':'Independiente'},
-    {f:'Pasos',        j:(jR.metrics||[]).length-1, c:(cR.metrics||[]).length-1, cs:(csR.metrics||[]).length-1},
     {f:'Tiempo (s)',   j:jR.elapsed_s?.toFixed(4), c:cR.elapsed_s?.toFixed(4), cs:csR.elapsed_s?.toFixed(4)},
     {f:'Entropía',     j:last(jR).entropy?.toFixed(4), c:last(cR).entropy?.toFixed(4), cs:last(csR).entropy?.toFixed(4)},
     {f:'Chi²',         j:last(jR).chi?.toFixed(2),     c:last(cR).chi?.toFixed(2),     cs:last(csR).chi?.toFixed(2)},
     {f:'Correlación',  j:last(jR).corr?.toFixed(4),    c:last(cR).corr?.toFixed(4),    cs:last(csR).corr?.toFixed(4)},
-    {f:'Recuperación', j:jR.recovery, c:cR.recovery, cs:csR.recovery},
-    {f:'SHA-256',      j:'MessageDigest', c:'OpenSSL',  cs:'System.Security'},
-    {f:'Runtime',      j:'JVM', c:'nativo -O2', cs:'.NET 8'},
+    {f:'SHA-256/Recuperación', j:`MessageDigest / ${jR.recovery||'—'}`, c:`OpenSSL / ${cR.recovery||'—'}`, cs:`System.Security / ${csR.recovery||'—'}`},
+    {f:'Entorno de ejecución', j:'JVM', c:'nativo -O2', cs:'.NET 8'},
   ];
   document.getElementById('comparison-table').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;padding:1rem">
     <table style="width:100%;border-collapse:collapse;font-size:.78rem">
@@ -886,7 +884,7 @@ function setHistogramRange(st,min,max){
 function renderHistogram(id){
   const canvas=document.getElementById(id),st=histogramStates[id]; if(!canvas||!st) return;
   const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth,H=300,pad={t:18,r:16,b:32,l:48};
+  const W=canvas.offsetWidth,H=300,pad={t:18,r:16,b:58,l:76};
   canvas.width=W*dpr; canvas.height=H*dpr;
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
@@ -899,8 +897,8 @@ function renderHistogram(id){
   for(let i=0;i<=5;i++){
     const y=pad.t+ph*(i/5);
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();
-    ctx.fillStyle='rgba(15,23,42,.78)';ctx.font="9px 'IBM Plex Mono'";
-    ctx.fillText(Math.round(maxV-(maxV*i/5)).toString(),6,y+3);
+    ctx.fillStyle='rgba(15,23,42,.78)';ctx.font="9px 'IBM Plex Mono'";ctx.textAlign='right';
+    ctx.fillText(Math.round(maxV-(maxV*i/5)).toString(),pad.l-10,y+3);
   }
 
   ctx.strokeStyle='rgba(15,23,42,.72)';
@@ -910,6 +908,16 @@ function renderHistogram(id){
   ctx.lineTo(pad.l, pad.t + ph);
   ctx.lineTo(pad.l + pw, pad.t + ph);
   ctx.stroke();
+
+  ctx.save();
+  ctx.translate(18, pad.t + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle='rgba(15,23,42,.86)';
+  ctx.font="11px 'Manrope'";
+  ctx.textAlign='center';
+  ctx.fillText('Cantidad de píxeles', 0, 0);
+  ctx.restore();
+  ctx.textAlign='start';
 
   const xForBin=bin=>pad.l+((bin-st.min)/(st.max-st.min))*pw;
   const yForVal=v=>pad.t+ph-(v/maxV)*ph;
@@ -950,8 +958,14 @@ function renderHistogram(id){
     ctx.strokeStyle='rgba(15,23,42,.72)';
     ctx.lineWidth=1;
     ctx.stroke();
-    ctx.fillText(text, tx, H - 10);
+    ctx.fillText(text, tx, pad.t + ph + 18);
   });
+
+  ctx.fillStyle='rgba(15,23,42,.86)';
+  ctx.font="11px 'Manrope'";
+  ctx.textAlign='center';
+  ctx.fillText('Valor de píxel', pad.l + pw / 2, H - 10);
+  ctx.textAlign='start';
 
   if(st.hover!==null){
     const hx=Math.max(pad.l,Math.min(pad.l+pw,st.hover));

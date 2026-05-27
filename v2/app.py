@@ -37,9 +37,14 @@ SESSIONS_ROOT = TEMP_ROOT / "sessions"
 
 C_CIFRADOR = BUILD_DIR / "cifrador_c"
 C_DESCIFRADOR = BUILD_DIR / "descifrador_c"
+C_COMPLETO = BUILD_DIR / "completo_c"
 JAVA_BUILD_DIR = BUILD_DIR / "java"
 CS_CIFRADO_PROJ = BUILD_DIR / "cs" / "Cifrado" / "Cifrado.csproj"
 CS_DESCIFRADO_PROJ = BUILD_DIR / "cs" / "Descifrado" / "Descifrado.csproj"
+CS_COMPLETO_PROJ = BUILD_DIR / "cs" / "Completo" / "Completo.csproj"
+CS_CIFRADO_DLL = BUILD_DIR / "cs" / "Cifrado" / "bin" / "Release" / "net10.0" / "Cifrado.dll"
+CS_DESCIFRADO_DLL = BUILD_DIR / "cs" / "Descifrado" / "bin" / "Release" / "net10.0" / "Descifrado.dll"
+CS_COMPLETO_DLL = BUILD_DIR / "cs" / "Completo" / "bin" / "Release" / "net10.0" / "Completo.dll"
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".bmp", ".tif", ".tiff"}
 EXPORT_FORMATS = {
     "png": ("PNG", ".png", "image/png"),
@@ -376,6 +381,20 @@ def ensure_c_binaries() -> tuple[bool, str]:
         if proc.returncode != 0:
             return False, proc.stderr[:400]
 
+    if needs_build(C_COMPLETO):
+        proc = run_cmd([
+            "gcc", "-std=c11", "-O2",
+            str(C_DIR / "completo.c"),
+            str(C_DIR / "automata.c"),
+            str(C_DIR / "permutaciones.c"),
+            str(C_DIR / "llaves.c"),
+            "-I", str(C_DIR),
+            "-lcrypto",
+            "-o", str(C_COMPLETO),
+        ], cwd=ROOT_DIR)
+        if proc.returncode != 0:
+            return False, proc.stderr[:400]
+
     return True, ""
 
 
@@ -425,6 +444,47 @@ def ensure_cs_projects() -> tuple[bool, str]:
         return False, "dotnet no está instalado."
     write_csproj(CS_CIFRADO_PROJ, "Cifrado")
     write_csproj(CS_DESCIFRADO_PROJ, "Descifrado")
+    write_csproj(CS_COMPLETO_PROJ, "Completo")
+
+    sources = sorted(CS_DIR.glob("*.cs"))
+    newest = max((src.stat().st_mtime for src in sources if src.exists()), default=0.0)
+    newest = max(
+        newest,
+        CS_CIFRADO_PROJ.stat().st_mtime if CS_CIFRADO_PROJ.exists() else 0.0,
+        CS_DESCIFRADO_PROJ.stat().st_mtime if CS_DESCIFRADO_PROJ.exists() else 0.0,
+        CS_COMPLETO_PROJ.stat().st_mtime if CS_COMPLETO_PROJ.exists() else 0.0,
+    )
+
+    def needs_build(output: Path) -> bool:
+        return (not output.exists()) or output.stat().st_mtime < newest
+
+    if needs_build(CS_CIFRADO_DLL):
+        proc = run_cmd([
+            "dotnet", "build", str(CS_CIFRADO_PROJ),
+            "-c", "Release",
+            "--nologo",
+        ], cwd=ROOT_DIR, timeout=360)
+        if proc.returncode != 0:
+            return False, proc.stderr[:400] or proc.stdout[:400]
+
+    if needs_build(CS_DESCIFRADO_DLL):
+        proc = run_cmd([
+            "dotnet", "build", str(CS_DESCIFRADO_PROJ),
+            "-c", "Release",
+            "--nologo",
+        ], cwd=ROOT_DIR, timeout=360)
+        if proc.returncode != 0:
+            return False, proc.stderr[:400] or proc.stdout[:400]
+
+    if needs_build(CS_COMPLETO_DLL):
+        proc = run_cmd([
+            "dotnet", "build", str(CS_COMPLETO_PROJ),
+            "-c", "Release",
+            "--nologo",
+        ], cwd=ROOT_DIR, timeout=360)
+        if proc.returncode != 0:
+            return False, proc.stderr[:400] or proc.stdout[:400]
+
     return True, ""
 
 
@@ -589,17 +649,25 @@ def decrypt_c_from_session(session: dict[str, str], out_recovered: Path) -> str 
 
 
 def run_c(session_id: str, input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+    del passphrase
+    ok, msg = ensure_c_binaries()
+    if not ok:
+        return result_error("C", msg)
+
+    tmpdir = make_runtime_dir(session_id, "c_")
+    out_cipher = tmpdir / "cipher_c.bin"
+    out_preview = tmpdir / "cipher_c.png"
+    out_recovered = tmpdir / "recovered_c.png"
+
     t0 = time.perf_counter()
-    enc = encrypt_c(session_id, input_png, steps, passphrase, shared_session)
-    if enc.get("error"):
-        return enc
-    session = parse_session_file(Path(enc["session_file"]))
-    out_recovered = Path(enc["workdir"]) / "recovered_c.png"
-    err = decrypt_c_from_session(session, out_recovered)
+    cmd = [str(C_COMPLETO), str(input_png), str(out_cipher), str(out_preview), str(out_recovered), str(steps)]
+    if shared_session:
+        cmd.extend([shared_session["z_hex"], shared_session["salt_hex"]])
+    proc = run_cmd(cmd, cwd=ROOT_DIR, timeout=240)
     wall = time.perf_counter() - t0
-    if err:
-        return result_error("C", err, round(wall, 4))
-    return finalize_result("C", Path(enc["workdir"]), input_png, Path(enc["preview_path"]), out_recovered, wall)
+    if proc.returncode != 0:
+        return result_error("C", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    return finalize_result("C", tmpdir, input_png, out_preview, out_recovered, wall)
 
 
 def encrypt_java(session_id: str, input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
@@ -645,17 +713,25 @@ def decrypt_java_from_session(session: dict[str, str], out_recovered: Path) -> s
 
 
 def run_java(session_id: str, input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+    del passphrase
+    ok, msg = ensure_java_build()
+    if not ok:
+        return result_error("Java", msg)
+
+    tmpdir = make_runtime_dir(session_id, "java_")
+    out_cipher = tmpdir / "cipher_java.bin"
+    out_preview = tmpdir / "cipher_java.png"
+    out_recovered = tmpdir / "recovered_java.png"
+
     t0 = time.perf_counter()
-    enc = encrypt_java(session_id, input_png, steps, passphrase, shared_session)
-    if enc.get("error"):
-        return enc
-    session = parse_session_file(Path(enc["session_file"]))
-    out_recovered = Path(enc["workdir"]) / "recovered_java.png"
-    err = decrypt_java_from_session(session, out_recovered)
+    cmd = ["java", "-cp", str(JAVA_BUILD_DIR), "Completo", str(input_png), str(out_cipher), str(out_preview), str(out_recovered), str(steps)]
+    if shared_session:
+        cmd.extend([shared_session["z_hex"], shared_session["salt_hex"]])
+    proc = run_cmd(cmd, cwd=ROOT_DIR, timeout=300)
     wall = time.perf_counter() - t0
-    if err:
-        return result_error("Java", err, round(wall, 4))
-    return finalize_result("Java", Path(enc["workdir"]), input_png, Path(enc["preview_path"]), out_recovered, wall)
+    if proc.returncode != 0:
+        return result_error("Java", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+    return finalize_result("Java", tmpdir, input_png, out_preview, out_recovered, wall)
 
 
 def encrypt_cs(session_id: str, input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
@@ -670,7 +746,7 @@ def encrypt_cs(session_id: str, input_png: Path, steps: int, passphrase: str, sh
     out_recovered = tmpdir / "recovered_cs.png"
 
     t0 = time.perf_counter()
-    cmd = ["dotnet", "run", "--project", str(CS_CIFRADO_PROJ), "--", str(input_png), str(out_cipher), str(out_preview), str(steps)]
+    cmd = ["dotnet", str(CS_CIFRADO_DLL), str(input_png), str(out_cipher), str(out_preview), str(steps)]
     if shared_session:
         cmd.extend([shared_session["z_hex"], shared_session["salt_hex"]])
     proc = run_cmd(cmd, cwd=ROOT_DIR, timeout=360)
@@ -684,7 +760,7 @@ def encrypt_cs(session_id: str, input_png: Path, steps: int, passphrase: str, sh
 
 def decrypt_cs_from_session(session: dict[str, str], out_recovered: Path) -> str | None:
     proc = run_cmd([
-        "dotnet", "run", "--project", str(CS_DESCIFRADO_PROJ), "--",
+        "dotnet", str(CS_DESCIFRADO_DLL),
         session["x_prev_path"],
         session["x_cur_path"],
         str(out_recovered),
@@ -701,17 +777,33 @@ def decrypt_cs_from_session(session: dict[str, str], out_recovered: Path) -> str
 
 
 def run_cs(session_id: str, input_png: Path, steps: int, passphrase: str, shared_session: dict[str, str] | None = None) -> dict:
+    del passphrase
+    ok, msg = ensure_cs_projects()
+    if not ok:
+        return result_error("C#", msg)
+
+    tmpdir = make_runtime_dir(session_id, "cs_")
+    out_cipher = tmpdir / "cipher_cs.bin"
+    out_preview = tmpdir / "cipher_cs.png"
+    out_recovered = tmpdir / "recovered_cs.png"
+
     t0 = time.perf_counter()
-    enc = encrypt_cs(session_id, input_png, steps, passphrase, shared_session)
-    if enc.get("error"):
-        return enc
-    session = parse_session_file(Path(enc["session_file"]))
-    out_recovered = Path(enc["workdir"]) / "recovered_cs.png"
-    err = decrypt_cs_from_session(session, out_recovered)
+    cmd = [
+        "dotnet", str(CS_COMPLETO_DLL),
+        str(input_png),
+        str(out_cipher),
+        str(out_preview),
+        str(out_recovered),
+        str(steps),
+    ]
+    if shared_session:
+        cmd.extend([shared_session["z_hex"], shared_session["salt_hex"]])
+    proc = run_cmd(cmd, cwd=ROOT_DIR, timeout=360)
     wall = time.perf_counter() - t0
-    if err:
-        return result_error("C#", err, round(wall, 4))
-    return finalize_result("C#", Path(enc["workdir"]), input_png, Path(enc["preview_path"]), out_recovered, wall)
+    if proc.returncode != 0:
+        return result_error("C#", proc.stderr[:400] or proc.stdout[:400], round(wall, 4))
+
+    return finalize_result("C#", tmpdir, input_png, out_preview, out_recovered, wall)
 
 
 @app.route("/")
