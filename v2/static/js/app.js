@@ -5,6 +5,7 @@ let currentMode = 'full';
 let lastFullResultData = null;
 let lastDecryptResultData = null;
 let exportDialogState = { results: [], initialized: false };
+let resultNavObserver = null;
 
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['png', 'bmp', 'tif', 'tiff']);
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/png', 'image/bmp', 'image/tiff', 'image/x-tiff']);
@@ -39,6 +40,8 @@ syncOperationModeUi();
 bindUiDialog();
 bindDecryptFilePickers();
 bindExportDialog();
+bindResultsNavigation();
+bindResultsTabs();
 
 function bindDecryptFilePickers() {
   [
@@ -256,6 +259,10 @@ function hideResultsView() {
   const results = document.getElementById('results');
   if (!results) return;
   results.style.display = 'none';
+  document.getElementById('results-nav')?.classList.add('panel-hidden');
+  document.getElementById('results-tabs')?.classList.add('panel-hidden');
+  document.getElementById('results-tabs-label')?.classList.add('panel-hidden');
+  document.getElementById('results-nav-label')?.classList.add('panel-hidden');
 }
 
 function restoreResultsForCurrentMode() {
@@ -361,9 +368,173 @@ function syncOperationModeUi() {
   document.getElementById('page-subtitle').textContent =
     currentMode === 'full'
       ? 'Compara el cifrado y el descifrado de imágenes mediante un autómata celular reversible con vecindad de Moore en Java, C y C#.'
-      : 'Recupera imágenes a partir de los archivos generados por el sistema de cifrado con autómata celular reversible con vecindad de Moore.';
+      : 'Recupera imágenes a partir de los archivos generados por el proceso de cifrado basado en un autómata celular reversible con vecindad de Moore.';
 
   restoreResultsForCurrentMode();
+}
+
+function bindResultsNavigation() {
+  const nav = document.getElementById('results-nav');
+  if (!nav || nav.dataset.bound === '1') return;
+
+  nav.addEventListener('click', event => {
+    const btn = event.target.closest('.results-nav-link');
+    if (!btn) return;
+    const target = document.getElementById(btn.dataset.target || '');
+    if (!target || target.classList.contains('panel-hidden')) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setActiveResultsNavItem(btn.dataset.target);
+  });
+
+  nav.dataset.bound = '1';
+}
+
+function bindResultsTabs() {
+  const tabs = document.getElementById('results-tabs');
+  if (!tabs || tabs.dataset.bound === '1') return;
+
+  tabs.addEventListener('click', event => {
+    const btn = event.target.closest('.results-tab');
+    if (!btn || btn.classList.contains('panel-hidden')) return;
+    activateResultsPanel(btn.dataset.panel || '');
+  });
+
+  tabs.dataset.bound = '1';
+}
+
+function activateResultsPanel(panelId) {
+  const panels = ['results-summary-panel', 'results-analysis-panel', 'results-guide-panel'];
+  panels.forEach(id => {
+    document.getElementById(id)?.classList.toggle('panel-hidden', id !== panelId);
+  });
+  document.querySelectorAll('.results-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.panel === panelId);
+  });
+  updateResultsNavigation(currentMode, panelId);
+  const firstVisible = document.querySelector(`#${panelId} .section-title:not(.panel-hidden), #${panelId} .result-action:not(.panel-hidden)`);
+  if (firstVisible) {
+    setActiveResultsNavItem(firstVisible.id || '');
+  }
+  if (panelId === 'results-guide-panel') {
+    const results = document.getElementById('results');
+    const tabs = document.getElementById('results-tabs');
+    if (results) {
+      requestAnimationFrame(() => {
+        const offset = (tabs?.offsetHeight || 0) + 18;
+        const top = results.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      });
+    }
+  }
+}
+
+function setActiveResultsNavItem(targetId) {
+  document.querySelectorAll('.results-nav-link').forEach(link => {
+    link.classList.toggle('active', link.dataset.target === targetId);
+  });
+}
+
+function updateResultsTabs(mode) {
+  const tabs = document.getElementById('results-tabs');
+  const tabsLabel = document.getElementById('results-tabs-label');
+  if (!tabs) return;
+
+  const tabButtons = Array.from(tabs.querySelectorAll('.results-tab'));
+  tabButtons.forEach(tab => {
+    const panel = tab.dataset.panel;
+    const shouldShow = mode === 'full'
+      ? true
+      : panel === 'results-summary-panel';
+    tab.classList.toggle('panel-hidden', !shouldShow);
+  });
+
+  const visibleTabs = tabButtons.filter(tab => !tab.classList.contains('panel-hidden'));
+  tabs.classList.toggle('panel-hidden', visibleTabs.length <= 1);
+  tabsLabel?.classList.toggle('panel-hidden', visibleTabs.length <= 1);
+
+  const preferredPanel = 'results-summary-panel';
+  const currentActive = tabButtons.find(tab => tab.classList.contains('active') && !tab.classList.contains('panel-hidden'));
+  activateResultsPanel(currentActive?.dataset.panel || preferredPanel);
+}
+
+function updateResultsNavigation(mode, activePanelId) {
+  const nav = document.getElementById('results-nav');
+  const navLabel = document.getElementById('results-nav-label');
+  if (!nav) return;
+
+  const panelTargets = {
+    'results-summary-panel': [],
+    'results-analysis-panel': ['perf-section-title', 'metricas-criptograficas', 'hist-section-title', 'table-section-title', 'download-section-title', 'export-section-title'],
+    'results-guide-panel': [],
+  };
+  const allowedTargets = new Set(panelTargets[activePanelId] || []);
+
+  document.querySelectorAll('.results-nav-link').forEach(link => {
+    const linkMode = link.dataset.mode;
+    const target = document.getElementById(link.dataset.target || '');
+    const targetPanel = target?.closest('.results-panel')?.id;
+    const panelMatches = targetPanel === activePanelId;
+    const isAllowedInPanel = allowedTargets.has(link.dataset.target || '');
+    const shouldShow = (!linkMode || linkMode === mode) && !!target && !target.classList.contains('panel-hidden') && panelMatches && isAllowedInPanel;
+    link.classList.toggle('panel-hidden', !shouldShow);
+  });
+
+  const visibleLinks = Array.from(nav.querySelectorAll('.results-nav-link'))
+    .filter(link => !link.classList.contains('panel-hidden'));
+  const shouldShowNav = visibleLinks.length > 0;
+  nav.classList.toggle('panel-hidden', !shouldShowNav);
+  navLabel?.classList.toggle('panel-hidden', !shouldShowNav);
+
+  const firstVisible = visibleLinks
+    .find(link => !link.classList.contains('panel-hidden'));
+  setActiveResultsNavItem(firstVisible?.dataset.target || '');
+  if (shouldShowNav) {
+    bindResultsNavObserver(mode, activePanelId);
+  } else if (resultNavObserver) {
+    resultNavObserver.disconnect();
+    resultNavObserver = null;
+  }
+}
+
+function bindResultsNavObserver(mode, activePanelId) {
+  if (resultNavObserver) {
+    resultNavObserver.disconnect();
+    resultNavObserver = null;
+  }
+
+  const targets = [
+    'images-section-title',
+    ...(mode === 'full'
+      ? ['download-section-title', 'perf-section-title', 'metricas-criptograficas', 'hist-section-title', 'table-section-title', 'guide-section-title', 'how-section-title']
+      : ['export-section-title'])
+  ]
+    .map(id => document.getElementById(id))
+    .filter(el => el && !el.classList.contains('panel-hidden') && el.closest('.results-panel')?.id === activePanelId);
+
+  if (!targets.length) return;
+
+  resultNavObserver = new IntersectionObserver(entries => {
+    const visible = entries
+      .filter(entry => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (visible?.target?.id) {
+      setActiveResultsNavItem(visible.target.id);
+    }
+  }, {
+    root: null,
+    rootMargin: '-80px 0px -55% 0px',
+    threshold: [0.2, 0.4, 0.65]
+  });
+
+  targets.forEach(target => resultNavObserver.observe(target));
+}
+
+function focusResultsStart() {
+  const results = document.getElementById('results');
+  if (!results) return;
+  requestAnimationFrame(() => {
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 // ── Run ───────────────────────────────────────────────────────────────
@@ -453,6 +624,7 @@ async function runOperation() {
     lastFullResultData = data;
     renderResults(data, currentMode);
   }
+  focusResultsStart();
   btn.disabled = false;
 }
 
@@ -461,16 +633,17 @@ let lightboxImages = [];
 let lightboxIndex = -1;
 
 function bindImageZoom() {
-  const grid = document.getElementById('images-grid');
+  const results = document.getElementById('results');
   const lightbox = document.getElementById('image-lightbox');
   const lightboxImage = document.getElementById('lightbox-image');
   const lightboxCaption = document.getElementById('lightbox-caption');
   const closeBtn = document.getElementById('lightbox-close');
   const prevBtn = document.getElementById('lightbox-prev');
   const nextBtn = document.getElementById('lightbox-next');
-  if (!grid || !lightbox || !lightboxImage || !lightboxCaption || !closeBtn || !prevBtn || !nextBtn) return;
+  if (!results || !lightbox || !lightboxImage || !lightboxCaption || !closeBtn || !prevBtn || !nextBtn) return;
 
-  lightboxImages = Array.from(grid.querySelectorAll('.img-card img'));
+  const getZoomableImages = () => Array.from(results.querySelectorAll('img[data-lightbox="1"]'));
+  lightboxImages = getZoomableImages();
 
   const renderLightboxImage = () => {
     if (lightboxIndex < 0 || lightboxIndex >= lightboxImages.length) return;
@@ -483,7 +656,7 @@ function bindImageZoom() {
   };
 
   const openLightbox = (index) => {
-    lightboxImages = Array.from(grid.querySelectorAll('.img-card img'));
+    lightboxImages = getZoomableImages();
     lightboxIndex = index;
     renderLightboxImage();
     lightbox.classList.remove('panel-hidden');
@@ -507,10 +680,10 @@ function bindImageZoom() {
   };
 
   if (!lightboxBound) {
-    grid.addEventListener('click', (event) => {
-      const target = event.target.closest('.img-card img');
+    results.addEventListener('click', (event) => {
+      const target = event.target.closest('img[data-lightbox="1"]');
       if (!target) return;
-      const images = Array.from(grid.querySelectorAll('.img-card img'));
+      const images = getZoomableImages();
       const index = images.indexOf(target);
       if (index >= 0) openLightbox(index);
     });
@@ -551,6 +724,185 @@ const LM = {
   'C#':   {color:'var(--cs-color)', cls:'lang-cs',   icon:'<img class="lang-icon" src="/static/img/c-sharp.svg" alt="C#">'},
 };
 
+function getLastMetric(result) {
+  const metrics = result?.metrics || [];
+  return metrics[metrics.length - 1] || {};
+}
+
+function formatRecoveryLabel(value) {
+  if (value === 'OK') return 'Exacta';
+  if (value === 'FAIL') return 'Fallida';
+  return '—';
+}
+
+function renderSummaryDashboard(data, mode = 'full') {
+  const overview = document.getElementById('summary-overview');
+  const highlights = document.getElementById('summary-highlights');
+  const cards = document.getElementById('summary-language-cards');
+  const actions = document.getElementById('summary-actions');
+  if (!overview || !highlights || !cards || !actions) return;
+
+  const results = data.results || [];
+  const cleanResults = results.filter(r => !r.error);
+  const sessionMode = data.session_mode === 'shared' ? 'Compartida' : 'Independiente';
+  const rounds = data.steps || Number(document.getElementById('rounds-input')?.value || 0) || null;
+  const fastest = cleanResults
+    .filter(r => Number.isFinite(r.elapsed_s))
+    .sort((a, b) => a.elapsed_s - b.elapsed_s)[0];
+  const bestEntropy = cleanResults
+    .map(r => ({ lang: r.lang, entropy: getLastMetric(r).entropy }))
+    .filter(item => Number.isFinite(item.entropy))
+    .sort((a, b) => b.entropy - a.entropy)[0];
+  const bestCorr = cleanResults
+    .map(r => ({ lang: r.lang, corr: Math.abs(getLastMetric(r).corr) }))
+    .filter(item => Number.isFinite(item.corr))
+    .sort((a, b) => a.corr - b.corr)[0];
+  const recoveredCount = results.filter(r => r.recovery === 'OK').length;
+  const statusClass = mode === 'decrypt'
+    ? (recoveredCount ? 'ok' : 'error')
+    : (recoveredCount === results.length ? 'ok' : recoveredCount > 0 ? 'warn' : 'error');
+  const statusText = mode === 'decrypt'
+    ? (recoveredCount ? 'Descifrado disponible' : 'No se recuperó ninguna imagen')
+    : (recoveredCount === results.length ? 'Recuperación correcta en todas las implementaciones' : recoveredCount > 0 ? 'Recuperación parcial' : 'Sin recuperación exacta');
+
+  overview.innerHTML = `
+    <div class="summary-hero-top">
+      <div>
+        <div class="summary-kicker">${mode === 'full' ? 'Resumen ejecutivo' : 'Resumen de descifrado'}</div>
+        <div class="summary-title">${fastest ? `${fastest.lang} lidera el resultado actual` : 'Resultado disponible para revisión'}</div>
+        <div class="summary-copy">
+          ${mode === 'full'
+            ? 'Esta vista concentra el resultado general, los indicadores más relevantes y las acciones principales sin obligarte a entrar al análisis completo.'
+            : 'Esta vista resume el estado del descifrado, las implementaciones disponibles y las acciones de exportación.'}
+        </div>
+      </div>
+      <div class="summary-status ${statusClass}">${statusText}</div>
+    </div>
+    <div class="summary-meta">
+      ${rounds ? `<div class="summary-chip">Rondas: <strong>${rounds}</strong></div>` : ''}
+      ${mode === 'full' ? `<div class="summary-chip">Sesión: <strong>${sessionMode}</strong></div>` : ''}
+      <div class="summary-chip">Implementaciones válidas: <strong>${cleanResults.length}/${results.length}</strong></div>
+      ${fastest ? `<div class="summary-chip">Más rápida: <strong>${fastest.lang}</strong></div>` : ''}
+    </div>
+  `;
+
+  const highlightItems = mode === 'full'
+    ? [
+        {
+          label: 'Más rápida',
+          value: fastest ? `${fastest.lang} · ${fastest.elapsed_s.toFixed(4)}s` : '—',
+          note: 'Menor tiempo total observado en la ejecución actual.'
+        },
+        {
+          label: 'Mayor entropía',
+          value: bestEntropy ? `${bestEntropy.lang} · ${bestEntropy.entropy.toFixed(4)} bits` : '—',
+          note: 'Valor más cercano a la distribución idealmente incierta.'
+        },
+        {
+          label: 'Mejor correlación',
+          value: bestCorr ? `${bestCorr.lang} · ${bestCorr.corr.toFixed(4)}` : '—',
+          note: 'Valor absoluto más cercano a cero entre píxeles vecinos.'
+        },
+        {
+          label: 'Recuperación',
+          value: `${recoveredCount}/${results.length}`,
+          note: 'Implementaciones que recuperaron la imagen exactamente.'
+        }
+      ]
+    : [
+        {
+          label: 'Recuperación disponible',
+          value: `${cleanResults.length}/${results.length}`,
+          note: 'Implementaciones que generaron una salida exportable.'
+        },
+        {
+          label: 'Más rápida',
+          value: fastest ? `${fastest.lang} · ${fastest.elapsed_s.toFixed(4)}s` : '—',
+          note: 'Menor tiempo total observado en el descifrado actual.'
+        }
+      ];
+  highlights.innerHTML = highlightItems.map(item => `
+    <div class="summary-highlight">
+      <div class="summary-highlight-label">${item.label}</div>
+      <div class="summary-highlight-value">${item.value}</div>
+      <div class="summary-highlight-note">${item.note}</div>
+    </div>
+  `).join('');
+
+  cards.innerHTML = results.map(result => {
+    const meta = LM[result.lang] || {};
+    const metric = getLastMetric(result);
+    const imageItems = mode === 'full'
+      ? [
+          { label: 'Original', kind: 'Original', src: data.original_img || '' },
+          { label: 'Cifrada', kind: 'Cifrada', src: result.cipher_img || '' },
+          { label: 'Descifrada', kind: 'Descifrada', src: result.recovered_img || '' }
+        ].filter(item => item.src)
+      : [
+          { label: 'Descifrada', kind: 'Descifrada', src: result.recovered_img || '' }
+        ].filter(item => item.src);
+    return `
+      <div class="summary-language-card">
+        <div class="summary-language-head">
+          <div class="summary-language-name ${meta.cls || ''}">${meta.icon || ''} ${result.lang || '?'}</div>
+          <div class="summary-language-badge">${result.error ? 'Con incidencia' : (mode === 'full' ? formatRecoveryLabel(result.recovery) : (result.status || 'OK'))}</div>
+        </div>
+        <div class="summary-language-visual">
+          ${imageItems.length ? `
+            <div class="summary-image-strip">
+              ${imageItems.map(item => `
+                <div class="summary-image-card">
+                  <img
+                    src="data:image/png;base64,${item.src}"
+                    alt="${item.kind} ${result.lang || ''}"
+                    data-lightbox="1"
+                    data-lang="${result.lang || ''}"
+                    data-kind="${item.kind}">
+                  <div class="summary-image-label">${item.label}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          <div class="summary-language-stats">
+            <div class="summary-stat"><span class="summary-stat-label">Tiempo</span><span class="summary-stat-value">${Number.isFinite(result.elapsed_s) ? `${result.elapsed_s.toFixed(4)}s` : '—'}</span></div>
+            ${mode === 'full' ? `
+              <div class="summary-stat"><span class="summary-stat-label">Entropía</span><span class="summary-stat-value">${Number.isFinite(metric.entropy) ? `${metric.entropy.toFixed(4)} bits` : '—'}</span></div>
+              <div class="summary-stat"><span class="summary-stat-label">Correlación</span><span class="summary-stat-value">${Number.isFinite(metric.corr) ? metric.corr.toFixed(4) : '—'}</span></div>
+              <div class="summary-stat"><span class="summary-stat-label">Recuperación</span><span class="summary-stat-value">${formatRecoveryLabel(result.recovery)}</span></div>
+            ` : `
+              <div class="summary-stat"><span class="summary-stat-label">Estado</span><span class="summary-stat-value">${result.status || (result.error ? 'ERROR' : 'OK')}</span></div>
+              <div class="summary-stat"><span class="summary-stat-label">Formato</span><span class="summary-stat-value">${result.output_format_label || '—'}</span></div>
+              <div class="summary-stat"><span class="summary-stat-label">SHA-256</span><span class="summary-stat-value">${result.sha256_output ? `${result.sha256_output.slice(0, 12)}…` : '—'}</span></div>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  actions.innerHTML = '';
+  if (mode === 'full') {
+    if (data.bundle_url) {
+      actions.innerHTML += `<button class="secondary-btn" id="summary-download-bundle-btn">Descargar archivos del cifrado (.zip)</button>`;
+    }
+    actions.innerHTML += `<button class="secondary-btn" id="summary-open-analysis-btn">Ir a análisis</button>`;
+    document.getElementById('summary-download-bundle-btn')?.addEventListener('click', () => {
+      saveUrlWithPicker(data.bundle_url, data.bundle_name || 'cipher_bundle.zip');
+    });
+    document.getElementById('summary-open-analysis-btn')?.addEventListener('click', () => {
+      activateResultsPanel('results-analysis-panel');
+    });
+  } else {
+    const exportableResults = results.filter(r => r.download_url && r.download_name);
+    if (exportableResults.length) {
+      actions.innerHTML += `<button class="secondary-btn" id="summary-open-export-btn">Guardar imagen descifrada</button>`;
+      document.getElementById('summary-open-export-btn')?.addEventListener('click', () => {
+        openExportDialog(exportableResults);
+      });
+    }
+  }
+}
+
 // ── Render ────────────────────────────────────────────────────────────
 function renderResults(data, mode='full') {
   const res = document.getElementById('results');
@@ -567,43 +919,6 @@ function renderResults(data, mode='full') {
   const jR  = results.find(r=>r.lang==='Java') || {};
   const cR  = results.find(r=>r.lang==='C')    || {};
   const csR = results.find(r=>r.lang==='C#')   || {};
-
-  document.getElementById('images-section-title').textContent =
-    'Original · Cifrada · Descifrada — por lenguaje';
-
-  // ── Images grid ──────────────────────────────────────────────────
-  const ig = document.getElementById('images-grid');
-  ig.innerHTML = '';
-  [jR, cR, csR].forEach(r => {
-    const m = LM[r.lang] || {};
-    const recLabel = r.recovery === 'OK'
-      ? '<span class="recovery-ok">✓ Recuperación exacta</span>'
-      : r.recovery === 'FAIL'
-      ? '<span class="recovery-fail">✗ Recuperación fallida</span>'
-      : '';
-
-    ig.innerHTML += `
-      <div class="lang-images">
-        <div class="lang-images-header" style="color:${m.color}">${m.icon||''} ${r.lang||'?'} ${recLabel}</div>
-        ${r.error
-          ? `<div style="font-size:.82rem;color:#f87171;font-weight:700">${UI_IMPLEMENTATION_ERROR}</div>`
-          : `<div class="lang-images-row">
-              <div class="img-card">
-                <img src="data:image/png;base64,${data.original_img||''}" alt="orig" data-lang="${r.lang||''}" data-kind="Original">
-                <div class="img-label">Original</div>
-              </div>
-              ${r.cipher_img ? `<div class="img-card">
-                <img src="data:image/png;base64,${r.cipher_img}" alt="cifrada" data-lang="${r.lang||''}" data-kind="Cifrada">
-                <div class="img-label">Cifrada</div>
-              </div>` : ''}
-              ${r.recovered_img ? `<div class="img-card">
-                <img src="data:image/png;base64,${r.recovered_img}" alt="descifrada" data-lang="${r.lang||''}" data-kind="Descifrada">
-                <div class="img-label">Descifrada</div>
-              </div>` : ''}
-            </div>`
-        }
-      </div>`;
-  });
 
   // ── Performance ──────────────────────────────────────────────────
   const times = [jR,cR,csR].map(r=>r.elapsed_s||0).filter(Boolean);
@@ -710,6 +1025,8 @@ function renderResults(data, mode='full') {
     }
   }
   bindImageZoom();
+  renderSummaryDashboard(data, 'full');
+  updateResultsTabs(mode);
 }
 
 function renderDecryptOnlyResult(data) {
@@ -717,7 +1034,6 @@ function renderDecryptOnlyResult(data) {
   res.style.display = 'block';
   res.classList.add('fade-in');
   setResultSectionsForMode('decrypt');
-  document.getElementById('images-section-title').textContent = 'Resultados de descifrado por lenguaje';
   document.getElementById('perf-row').innerHTML = '';
   document.getElementById('metrics-cards').innerHTML = '';
   document.getElementById('histogram-grid').innerHTML = '';
@@ -726,33 +1042,6 @@ function renderDecryptOnlyResult(data) {
   const jR  = results.find(r=>r.lang==='Java') || {};
   const cR  = results.find(r=>r.lang==='C')    || {};
   const csR = results.find(r=>r.lang==='C#')   || {};
-  document.getElementById('images-grid').innerHTML = [jR, cR, csR].map(r => {
-    const meta = LM[r.lang] || {};
-    const dims = r.dimensions ? `${r.dimensions.width} x ${r.dimensions.height} x ${r.dimensions.channels}` : '—';
-    const outputLabel = r.output_format_label || 'PNG';
-    const outputSize = Number.isFinite(r.output_size_bytes) ? `${(r.output_size_bytes / 1024).toFixed(2)} KB` : '—';
-    const status = r.status || (r.error ? 'ERROR' : 'OK');
-    return `
-    <div class="lang-images">
-      <div class="lang-images-header" style="color:${meta.color||'var(--text)'}">${meta.icon||''} ${r.lang || '?'}</div>
-      ${r.error
-        ? `<div style="font-size:.82rem;color:#f87171;margin-bottom:.7rem;font-weight:700">${UI_IMPLEMENTATION_ERROR}</div>`
-        : `<div class="lang-images-row">
-            <div class="img-card">
-              <img src="data:image/png;base64,${r.recovered_img||''}" alt="descifrada" data-lang="${r.lang||''}" data-kind="Descifrada">
-              <div class="img-label">Descifrada</div>
-            </div>
-          </div>`}
-      <div class="mini-metrics" style="display:grid;gap:.38rem;margin-top:.85rem;font-size:.74rem">
-        <div><strong>Tiempo:</strong> ${r.elapsed_s ?? '—'} s</div>
-        <div><strong>Estado:</strong> ${status}</div>
-        <div><strong>Dimensiones:</strong> ${dims}</div>
-        <div><strong>Tamaño ${outputLabel}:</strong> ${outputSize}</div>
-        <div style="word-break:break-all"><strong>SHA-256 ${outputLabel}:</strong> ${r.sha256_output || '—'}</div>
-        <div style="word-break:break-all"><strong>SHA-256 RGB:</strong> ${r.sha256_rgb || '—'}</div>
-      </div>
-    </div>`;
-  }).join('');
   document.getElementById('encrypt-actions').innerHTML = '';
   const actions = document.getElementById('decrypt-actions');
   const exportableResults = [jR, cR, csR].filter(r => r.download_url && r.download_name);
@@ -763,6 +1052,8 @@ function renderDecryptOnlyResult(data) {
     openExportDialog(exportableResults);
   });
   bindImageZoom();
+  renderSummaryDashboard(data, 'decrypt');
+  updateResultsTabs('decrypt');
 }
 
 function setResultSectionsForMode(mode) {
@@ -771,10 +1062,16 @@ function setResultSectionsForMode(mode) {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('panel-hidden', !showCompareBlocks);
   });
+  ['export-section-title', 'decrypt-actions'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('panel-hidden', mode !== 'decrypt');
+  });
   ['guide-section-title','guide-grid','back-metrics-link','how-section-title','how-grid','guide-note'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('panel-hidden', mode === 'decrypt');
   });
+  const encryptActions = document.getElementById('encrypt-actions');
+  if (encryptActions) encryptActions.classList.toggle('panel-hidden', mode === 'decrypt');
 }
 
 async function saveUrlWithPicker(url, suggestedName) {
@@ -884,7 +1181,7 @@ function setHistogramRange(st,min,max){
 function renderHistogram(id){
   const canvas=document.getElementById(id),st=histogramStates[id]; if(!canvas||!st) return;
   const dpr=window.devicePixelRatio||1;
-  const W=canvas.offsetWidth,H=300,pad={t:18,r:16,b:58,l:76};
+  const W=canvas.offsetWidth,H=300,pad={t:18,r:16,b:58,l:86};
   canvas.width=W*dpr; canvas.height=H*dpr;
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
@@ -898,7 +1195,7 @@ function renderHistogram(id){
     const y=pad.t+ph*(i/5);
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();
     ctx.fillStyle='rgba(15,23,42,.78)';ctx.font="9px 'IBM Plex Mono'";ctx.textAlign='right';
-    ctx.fillText(Math.round(maxV-(maxV*i/5)).toString(),pad.l-10,y+3);
+    ctx.fillText(Math.round(maxV-(maxV*i/5)).toString(),pad.l-12,y+3);
   }
 
   ctx.strokeStyle='rgba(15,23,42,.72)';
@@ -910,7 +1207,7 @@ function renderHistogram(id){
   ctx.stroke();
 
   ctx.save();
-  ctx.translate(18, pad.t + ph / 2);
+  ctx.translate(42, pad.t + ph / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.fillStyle='rgba(15,23,42,.86)';
   ctx.font="11px 'Manrope'";
@@ -958,7 +1255,7 @@ function renderHistogram(id){
     ctx.strokeStyle='rgba(15,23,42,.72)';
     ctx.lineWidth=1;
     ctx.stroke();
-    ctx.fillText(text, tx, pad.t + ph + 18);
+    ctx.fillText(text, tx, pad.t + ph + 14);
   });
 
   ctx.fillStyle='rgba(15,23,42,.86)';
