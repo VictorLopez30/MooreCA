@@ -1,7 +1,7 @@
 'use strict';
 // ── State ──────────────────────────────────────────────────────────────
 let uploadedFile = null;
-let currentMode = 'full';
+let currentMode = '';
 let lastFullResultData = null;
 let lastDecryptResultData = null;
 let exportDialogState = { results: [], initialized: false };
@@ -10,6 +10,18 @@ let resultNavObserver = null;
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['png', 'bmp', 'tif', 'tiff']);
 const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/png', 'image/bmp', 'image/tiff', 'image/x-tiff']);
 const UI_IMPLEMENTATION_ERROR = 'No fue posible completar esta implementación.';
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function setProgressSummary(text) {
+  const el = document.getElementById('progress-summary');
+  if (el) el.textContent = text;
+}
 
 // ── Upload ────────────────────────────────────────────────────────────
 const dropZone  = document.getElementById('drop-zone');
@@ -42,6 +54,8 @@ bindDecryptFilePickers();
 bindExportDialog();
 bindResultsNavigation();
 bindResultsTabs();
+document.getElementById('rounds-input')?.addEventListener('input', syncWorkflowState);
+syncWorkflowState();
 
 function bindDecryptFilePickers() {
   [
@@ -57,10 +71,12 @@ function bindDecryptFilePickers() {
       label.textContent = input.files && input.files[0]
         ? input.files[0].name
         : 'No se ha seleccionado ningún archivo';
+      updateDecryptChecklist();
       lastDecryptResultData = null;
       if (currentMode === 'decrypt') {
         hideResultsView();
       }
+      syncWorkflowState();
     };
 
     input.addEventListener('change', updateLabel);
@@ -248,11 +264,17 @@ function resetImageSelection() {
   if (roundsBox) {
     roundsBox.innerHTML = '<strong>Nota:</strong> Selecciona una imagen para ver una recomendación de rondas según su tamaño.';
   }
+  const previewMeta = document.getElementById('preview-meta');
+  if (previewMeta) previewMeta.textContent = 'Aún no hay dimensiones disponibles.';
+  document.getElementById('encrypt-file-summary')?.classList.add('panel-hidden');
+  const fileMeta = document.getElementById('encrypt-file-meta');
+  if (fileMeta) fileMeta.textContent = '';
   document.getElementById('encrypt-workspace').classList.add('panel-hidden');
   hideResultsView();
   if (currentMode === 'full') {
     document.getElementById('run-btn').style.display = 'none';
   }
+  syncWorkflowState();
 }
 
 function hideResultsView() {
@@ -263,6 +285,44 @@ function hideResultsView() {
   document.getElementById('results-tabs')?.classList.add('panel-hidden');
   document.getElementById('results-tabs-label')?.classList.add('panel-hidden');
   document.getElementById('results-nav-label')?.classList.add('panel-hidden');
+}
+
+function renderResultsContext(data, mode = 'full') {
+  const title = document.getElementById('results-stage-title');
+  const copy = document.getElementById('results-stage-copy');
+  const card = document.getElementById('results-context-card');
+  if (!title || !copy || !card) return;
+
+  const rounds = data?.steps || Number(document.getElementById('rounds-input')?.value || 0) || null;
+  const sessionMode = data?.session_mode === 'shared' ? 'Compartida' : 'Independiente';
+  const results = data?.results || [];
+  const validCount = results.filter(item => !item.error).length;
+
+  if (mode === 'full') {
+    title.textContent = 'Resultados del cifrado comparativo';
+    copy.textContent = 'Estos resultados se generaron a partir de la imagen y la configuración de ejecución seleccionadas arriba.';
+    const sourceName = uploadedFile?.name || 'Imagen actual';
+    card.innerHTML = `
+      <div class="results-context-chip">Modo: <strong>Cifrado</strong></div>
+      <div class="results-context-chip">Archivo: <strong>${sourceName}</strong></div>
+      ${rounds ? `<div class="results-context-chip">Rondas: <strong>${rounds}</strong></div>` : ''}
+      <div class="results-context-chip">Sesión: <strong>${sessionMode}</strong></div>
+      <div class="results-context-chip">Implementaciones válidas: <strong>${validCount}/${results.length || 3}</strong></div>
+    `;
+  } else {
+    title.textContent = 'Resultados del descifrado';
+    copy.textContent = 'Estas salidas corresponden a los artefactos cargados en la sección de ejecución. Puedes revisar cada implementación y exportar la imagen recuperada.';
+    const cipherName = document.getElementById('decrypt-cipher')?.files?.[0]?.name || 'Artefactos cargados';
+    const prevName = document.getElementById('decrypt-prev')?.files?.[0]?.name || '—';
+    const sessionName = document.getElementById('decrypt-session')?.files?.[0]?.name || '—';
+    card.innerHTML = `
+      <div class="results-context-chip">Modo: <strong>Descifrado</strong></div>
+      <div class="results-context-chip">Cifrado: <strong>${cipherName}</strong></div>
+      <div class="results-context-chip">Previo: <strong>${prevName}</strong></div>
+      <div class="results-context-chip">Sesión: <strong>${sessionName}</strong></div>
+      <div class="results-context-chip">Implementaciones válidas: <strong>${validCount}/${results.length || 3}</strong></div>
+    `;
+  }
 }
 
 function restoreResultsForCurrentMode() {
@@ -308,6 +368,91 @@ function updateRoundsRecommendation(width, height) {
   target.innerHTML = `<strong>Nota:</strong> Para una imagen de ${width} x ${height} px se recomiendan ${rec.range} rondas.`;
 }
 
+function updateEncryptFileSummary(file, width, height) {
+  const summary = document.getElementById('encrypt-file-summary');
+  const meta = document.getElementById('encrypt-file-meta');
+  const previewMeta = document.getElementById('preview-meta');
+  if (summary) summary.classList.remove('panel-hidden');
+  if (meta) {
+    const ext = (file.name.split('.').pop() || '').toUpperCase();
+    meta.textContent = `${file.name} · ${ext} · ${width} × ${height} px · ${formatBytes(file.size)}`;
+  }
+  if (previewMeta) {
+    previewMeta.textContent = `${width} × ${height} px · ${formatBytes(file.size)} · ${file.name}`;
+  }
+}
+
+function updateDecryptChecklist() {
+  const cipher = document.getElementById('decrypt-cipher')?.files?.[0];
+  const prev = document.getElementById('decrypt-prev')?.files?.[0];
+  const session = document.getElementById('decrypt-session')?.files?.[0];
+  const statuses = {
+    cipher,
+    prev,
+    session,
+  };
+  document.querySelectorAll('.decrypt-check-item').forEach(item => {
+    const key = item.dataset.file;
+    const file = statuses[key];
+    item.classList.toggle('ok', !!file);
+    if (file) {
+      const copy = key === 'cipher'
+        ? `Archivo cifrado listo: ${file.name}`
+        : key === 'prev'
+          ? `Estado previo listo: ${file.name}`
+          : `Sesión lista: ${file.name}`;
+      item.textContent = copy;
+    } else if (key === 'cipher') {
+      item.innerHTML = 'Falta el archivo cifrado <strong>.bin</strong>';
+    } else if (key === 'prev') {
+      item.innerHTML = 'Falta el estado previo <strong>.prev.bin</strong>';
+    } else {
+      item.innerHTML = 'Falta la sesión <strong>.session.txt</strong>';
+    }
+  });
+}
+
+function syncWorkflowState() {
+  const modeSelected = !!document.querySelector('input[name="operation-mode"]:checked');
+  const isDecrypt = currentMode === 'decrypt';
+  const cipher = document.getElementById('decrypt-cipher')?.files?.[0];
+  const prev = document.getElementById('decrypt-prev')?.files?.[0];
+  const session = document.getElementById('decrypt-session')?.files?.[0];
+  const filesReady = !modeSelected ? false : (isDecrypt ? !!(cipher && prev && session) : !!uploadedFile);
+  const roundsValue = parseInt(document.getElementById('rounds-input')?.value || '0', 10);
+  const configReady = !modeSelected ? false : (isDecrypt ? true : Number.isFinite(roundsValue) && roundsValue >= 1);
+  const runReady = modeSelected && filesReady && configReady;
+
+  const fileStepTitle = document.getElementById('file-step-title');
+  const fileStepCopy = document.getElementById('file-step-copy');
+  const helper = document.getElementById('run-helper');
+  if (fileStepTitle) {
+    fileStepTitle.textContent = !modeSelected
+      ? 'Selecciona primero un modo de operación'
+      : (isDecrypt ? 'Carga los artefactos de descifrado' : 'Carga la imagen de entrada');
+  }
+  if (fileStepCopy) {
+    fileStepCopy.textContent = !modeSelected
+      ? 'Elige si quieres cifrar o descifrar para mostrar solo los campos relevantes.'
+      : (isDecrypt
+        ? 'Necesitas el binario cifrado, el estado previo y el archivo de sesión. El sistema te indicará qué archivo falta.'
+        : 'Selecciona una imagen PNG, BMP o TIFF. Se mostrará su vista previa y una recomendación de rondas basada en el tamaño detectado.');
+  }
+  if (helper) {
+    helper.textContent = !modeSelected
+      ? 'Selecciona primero el modo de operación para habilitar el flujo correspondiente.'
+      : runReady
+      ? (isDecrypt
+        ? 'Los tres archivos requeridos están listos. Puedes iniciar el descifrado cuando quieras.'
+        : 'La imagen, la configuración y la sesión están listas. Ejecuta la comparación para generar resultados.')
+      : (isDecrypt
+        ? 'Completa los tres archivos del paquete de descifrado antes de ejecutar.'
+        : uploadedFile
+          ? 'Revisa la sesión y el número de rondas antes de ejecutar.'
+          : 'Selecciona primero una imagen válida para habilitar la ejecución.');
+  }
+}
+
 function handleFile(file) {
   if (!validateImageFile(file)) return;
 
@@ -329,12 +474,14 @@ function handleFile(file) {
       canvas.height = img.height;
       canvas.getContext('2d').drawImage(img, 0, 0);
       updateRoundsRecommendation(img.width, img.height);
+      updateEncryptFileSummary(file, img.width, img.height);
       document.getElementById('encrypt-workspace').classList.toggle('panel-hidden', currentMode === 'decrypt' || !uploadedFile);
       document.getElementById('run-btn').style.display = 'block';
       lastFullResultData = null;
       if (currentMode === 'full') {
         hideResultsView();
       }
+      syncWorkflowState();
     };
     img.src = ev.target.result;
   };
@@ -353,23 +500,29 @@ function syncOperationModeUi() {
     const input = option.querySelector('input[name="operation-mode"]');
     option.classList.toggle('selected', !!input?.checked);
   });
-  currentMode = document.querySelector('input[name="operation-mode"]:checked')?.value || 'full';
+  currentMode = document.querySelector('input[name="operation-mode"]:checked')?.value || '';
+  const hasMode = !!currentMode;
   const isDecrypt = currentMode === 'decrypt';
-  document.getElementById('drop-zone').classList.toggle('panel-hidden', isDecrypt);
-  document.getElementById('encrypt-workspace').classList.toggle('panel-hidden', isDecrypt || !uploadedFile);
+  document.getElementById('drop-zone').classList.toggle('panel-hidden', !hasMode || isDecrypt);
+  document.getElementById('encrypt-workspace').classList.toggle('panel-hidden', !hasMode || isDecrypt || !uploadedFile);
   document.getElementById('decrypt-panel').classList.toggle('panel-hidden', !isDecrypt);
+  document.getElementById('encrypt-file-summary')?.classList.toggle('panel-hidden', !hasMode || isDecrypt || !uploadedFile);
 
   const btn = document.getElementById('run-btn');
-  btn.style.display = (currentMode === 'decrypt' || !!uploadedFile) ? 'block' : 'none';
+  btn.style.display = (!hasMode ? 'none' : (currentMode === 'decrypt' || !!uploadedFile) ? 'block' : 'none');
   btn.textContent =
     currentMode === 'full' ? '▶ Ejecutar cifrado' :
-    '▶ Ejecutar descifrado';
+    currentMode === 'decrypt' ? '▶ Ejecutar descifrado' : '▶ Selecciona un modo';
 
   document.getElementById('page-subtitle').textContent =
     currentMode === 'full'
       ? 'Compara el cifrado y el descifrado de imágenes mediante un autómata celular reversible con vecindad de Moore en Java, C y C#.'
-      : 'Recupera imágenes a partir de los archivos generados por el proceso de cifrado basado en un autómata celular reversible con vecindad de Moore.';
+      : currentMode === 'decrypt'
+        ? 'Recupera imágenes a partir de los archivos generados por el proceso de cifrado basado en un autómata celular reversible con vecindad de Moore.'
+        : 'Selecciona un modo de operación para mostrar el flujo correspondiente.';
 
+  updateDecryptChecklist();
+  syncWorkflowState();
   restoreResultsForCurrentMode();
 }
 
@@ -539,6 +692,7 @@ function focusResultsStart() {
 
 // ── Run ───────────────────────────────────────────────────────────────
 async function runOperation() {
+  if (!currentMode) return;
   if (currentMode === 'full' && !uploadedFile) return;
   if (currentMode === 'decrypt') {
     const cipher = document.getElementById('decrypt-cipher').files[0];
@@ -554,6 +708,9 @@ async function runOperation() {
 
   const prog = document.getElementById('progress');
   prog.style.display = 'flex';
+  setProgressSummary(currentMode === 'full'
+    ? 'Preparando la imagen y distribuyendo la ejecución entre implementaciones…'
+    : 'Validando artefactos y preparando el descifrado comparativo…');
   hideResultsView();
 
   // Reset progress rows
@@ -563,7 +720,7 @@ async function runOperation() {
     const msg = document.getElementById('msg-'+l);
     if (sp)  { sp.style.display=''; }
     if (row) { row.style.opacity = l==='java' ? '1' : '0.4'; row.querySelectorAll('.check').forEach(x=>x.remove()); }
-    if (msg) msg.textContent = l==='java' ? 'Ejecutando Java…' : l==='c' ? 'Esperando C…' : 'Esperando C#…';
+    if (msg) msg.textContent = l==='java' ? 'Preparando Java…' : l==='c' ? 'Esperando el turno de C…' : 'Esperando el turno de C#…';
   });
 
   const fd = new FormData();
@@ -606,13 +763,15 @@ async function runOperation() {
   const csR= results.find(r=>r.lang==='C#')   || {};
 
   if (currentMode === 'decrypt') {
-    setProgress('java','done', 'Preparando salida…');
-    setProgress('c',   'done', 'Descifrado listo ✓');
-    setProgress('cs',  'done', 'Listo');
+    setProgressSummary('El descifrado terminó y la interfaz está consolidando las salidas exportables.');
+    setProgress('java','done', 'Java listo para exportación');
+    setProgress('c',   'done', 'C descifrado correctamente');
+    setProgress('cs',  'done', 'C# descifrado correctamente');
   } else {
-    setProgress('java','done', jR.error  ? 'Java ⚠ error'          : 'Java listo ✓');
-    setProgress('c',   'done', cR.error  ? 'C ⚠ no compilado'      : 'C listo ✓');
-    setProgress('cs',  'done', csR.error ? 'C# ⚠ no compilado'     : 'C# listo ✓');
+    setProgressSummary('La ejecución terminó y se están consolidando métricas, imágenes y comparaciones.');
+    setProgress('java','done', jR.error  ? 'Java terminó con incidencia' : 'Java completó el flujo');
+    setProgress('c',   'done', cR.error  ? 'C terminó con incidencia'    : 'C completó el flujo');
+    setProgress('cs',  'done', csR.error ? 'C# terminó con incidencia'   : 'C# completó el flujo');
   }
 
   await delay(350);
@@ -765,26 +924,30 @@ function renderSummaryDashboard(data, mode = 'full') {
     ? (recoveredCount ? 'Descifrado disponible' : 'No se recuperó ninguna imagen')
     : (recoveredCount === results.length ? 'Recuperación correcta en todas las implementaciones' : recoveredCount > 0 ? 'Recuperación parcial' : 'Sin recuperación exacta');
 
-  overview.innerHTML = `
-    <div class="summary-hero-top">
-      <div>
-        <div class="summary-kicker">${mode === 'full' ? 'Resumen ejecutivo' : 'Resumen de descifrado'}</div>
-        <div class="summary-title">${fastest ? `${fastest.lang} lidera el resultado actual` : 'Resultado disponible para revisión'}</div>
-        <div class="summary-copy">
-          ${mode === 'full'
-            ? 'Esta vista concentra el resultado general, los indicadores más relevantes y las acciones principales sin obligarte a entrar al análisis completo.'
-            : 'Esta vista resume el estado del descifrado, las implementaciones disponibles y las acciones de exportación.'}
+  if (mode === 'full') {
+    overview.innerHTML = `
+      <div class="summary-hero-top">
+        <div>
+          <div class="summary-kicker">Resumen ejecutivo</div>
+          <div class="summary-title">${fastest ? `${fastest.lang} lidera el resultado actual` : 'Resultado disponible para revisión'}</div>
+          <div class="summary-copy">
+            Esta vista concentra el resultado general, los indicadores más relevantes y las acciones principales sin obligarte a entrar al análisis completo.
+          </div>
         </div>
+        <div class="summary-status ${statusClass}">${statusText}</div>
       </div>
-      <div class="summary-status ${statusClass}">${statusText}</div>
-    </div>
-    <div class="summary-meta">
-      ${rounds ? `<div class="summary-chip">Rondas: <strong>${rounds}</strong></div>` : ''}
-      ${mode === 'full' ? `<div class="summary-chip">Sesión: <strong>${sessionMode}</strong></div>` : ''}
-      <div class="summary-chip">Implementaciones válidas: <strong>${cleanResults.length}/${results.length}</strong></div>
-      ${fastest ? `<div class="summary-chip">Más rápida: <strong>${fastest.lang}</strong></div>` : ''}
-    </div>
-  `;
+      <div class="summary-meta">
+        ${rounds ? `<div class="summary-chip">Rondas: <strong>${rounds}</strong></div>` : ''}
+        <div class="summary-chip">Sesión: <strong>${sessionMode}</strong></div>
+        <div class="summary-chip">Implementaciones válidas: <strong>${cleanResults.length}/${results.length}</strong></div>
+        ${fastest ? `<div class="summary-chip">Más rápida: <strong>${fastest.lang}</strong></div>` : ''}
+      </div>
+    `;
+    overview.classList.remove('panel-hidden');
+  } else {
+    overview.innerHTML = '';
+    overview.classList.add('panel-hidden');
+  }
 
   const highlightItems = mode === 'full'
     ? [
@@ -821,13 +984,19 @@ function renderSummaryDashboard(data, mode = 'full') {
           note: 'Menor tiempo total observado en el descifrado actual.'
         }
       ];
-  highlights.innerHTML = highlightItems.map(item => `
-    <div class="summary-highlight">
-      <div class="summary-highlight-label">${item.label}</div>
-      <div class="summary-highlight-value">${item.value}</div>
-      <div class="summary-highlight-note">${item.note}</div>
-    </div>
-  `).join('');
+  if (mode === 'full') {
+    highlights.innerHTML = highlightItems.map(item => `
+      <div class="summary-highlight">
+        <div class="summary-highlight-label">${item.label}</div>
+        <div class="summary-highlight-value">${item.value}</div>
+        <div class="summary-highlight-note">${item.note}</div>
+      </div>
+    `).join('');
+    highlights.classList.remove('panel-hidden');
+  } else {
+    highlights.innerHTML = '';
+    highlights.classList.add('panel-hidden');
+  }
 
   cards.innerHTML = results.map(result => {
     const meta = LM[result.lang] || {};
@@ -908,6 +1077,7 @@ function renderResults(data, mode='full') {
   const res = document.getElementById('results');
   res.style.display = 'block';
   res.classList.add('fade-in');
+  renderResultsContext(data, mode);
   setResultSectionsForMode(mode);
   const encryptActions = document.getElementById('encrypt-actions');
   const decryptActions = document.getElementById('decrypt-actions');
@@ -945,10 +1115,10 @@ function renderResults(data, mode='full') {
         <span class="metric-time">${r.elapsed_s?r.elapsed_s.toFixed(4)+'s':'N/A'}</span>
       </div>
       ${r.error?`<div style="font-size:.82rem;color:#f87171;line-height:1.6;font-weight:700">${UI_IMPLEMENTATION_ERROR}</div>`
-        :`<div class="metric-row"><a class="metric-link" href="#desc-entropia">Entropía</a><span class="metric-value" style="color:${m.color}">${e.toFixed(4)} bits</span></div>
+        :`<div class="metric-row"><span class="metric-link">Entropía</span><span class="metric-value" style="color:${m.color}">${e.toFixed(4)} bits</span></div>
          <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${ePct}%;background:${m.color}"></div></div>
-         <div class="metric-row"><a class="metric-link" href="#desc-chi">Chi²</a><span class="metric-value">${chi.toFixed(1)}</span></div>
-         <div class="metric-row"><a class="metric-link" href="#desc-correlacion">Correlación</a><span class="metric-value">${corr.toFixed(4)}</span></div>
+         <div class="metric-row"><span class="metric-link">Chi²</span><span class="metric-value">${chi.toFixed(1)}</span></div>
+         <div class="metric-row"><span class="metric-link">Correlación</span><span class="metric-value">${corr.toFixed(4)}</span></div>
          <div class="metric-row"><span class="metric-name">Recuperación</span><span class="${r.recovery==='OK'?'recovery-ok':'recovery-fail'}">${r.recovery||'—'}</span></div>`}
     </div>`;
   }).join('');
@@ -1033,6 +1203,7 @@ function renderDecryptOnlyResult(data) {
   const res = document.getElementById('results');
   res.style.display = 'block';
   res.classList.add('fade-in');
+  renderResultsContext(data, 'decrypt');
   setResultSectionsForMode('decrypt');
   document.getElementById('perf-row').innerHTML = '';
   document.getElementById('metrics-cards').innerHTML = '';

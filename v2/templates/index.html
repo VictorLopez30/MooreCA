@@ -15,120 +15,176 @@
 </header>
 
 <main>
-  <div class="control-panel">
-    <div>
-      <div class="control-title" style="margin-bottom:.65rem">Modo de operación</div>
-      <div class="op-modes">
-        <label class="op-option">
-          <input type="radio" name="operation-mode" value="full" checked>
-          <div class="op-copy">
-            <strong>Cifrado</strong>
-            <span>Ejecuta el flujo completo, compara Java, C y C# con recuperación y permite descargar los archivos del cifrado.</span>
+  <div class="workspace-label">Configuración de ejecución</div>
+  <section class="flow-shell">
+    <div class="flow-layout">
+      <div class="flow-main">
+        <section class="flow-card" id="step-mode-card">
+          <div class="flow-card-head">
+            <div>
+              <h3>Elige el modo de operación</h3>
+              <p>Selecciona si quieres ejecutar el flujo completo de cifrado y comparación o recuperar una imagen desde artefactos ya generados.</p>
+            </div>
           </div>
-        </label>
-        <label class="op-option">
-          <input type="radio" name="operation-mode" value="decrypt">
-          <div class="op-copy">
-            <strong>Descifrado</strong>
-            <span>Sube los archivos del cifrado y recupera la imagen descifrada.</span>
-          </div>
-        </label>
-      </div>
-    </div>
-  </div>
-
-  <!-- Upload -->
-  <div class="upload-zone" id="drop-zone">
-    <input type="file" id="file-input" accept=".png,.bmp,.tif,.tiff,image/png,image/bmp,image/tiff">
-    <div style="font-size:2.5rem;opacity:.4">🖼️</div>
-    <div class="upload-text">
-      Arrastra una imagen aquí o <span id="pick-btn">haz clic para seleccionar</span>
-    </div>
-    <div class="upload-text" style="font-size:.7rem">PNG · BMP · TIFF</div>
-  </div>
-
-  <div id="encrypt-workspace" class="panel-hidden">
-    <div class="control-panel" id="encrypt-controls">
-      <div class="param-grid">
-        <div>
-          <div class="control-title" style="margin-bottom:.65rem">Ajustes de cifrado</div>
-          <div class="session-modes">
-            <label class="session-option">
-              <input type="radio" name="session-mode" value="independent" checked>
-              <div class="session-copy">
-                <strong>Sesión independiente</strong>
-                <span>Cada implementación genera su propia sesión criptográfica.</span>
+          <div class="op-modes">
+            <label class="op-option">
+              <input type="radio" name="operation-mode" value="full">
+              <div class="op-copy">
+                <strong>Cifrado</strong>
+                <span>Ejecuta el flujo completo, compara Java, C y C# con recuperación y permite descargar los archivos del cifrado.</span>
               </div>
             </label>
-            <label class="session-option">
-              <input type="radio" name="session-mode" value="shared">
-              <div class="session-copy">
-                <strong>Sesión compartida</strong>
-                <span>Se genera una única sesión criptográfica para todas las implementaciones.</span>
+            <label class="op-option">
+              <input type="radio" name="operation-mode" value="decrypt">
+              <div class="op-copy">
+                <strong>Descifrado</strong>
+                <span>Sube los archivos del cifrado y recupera la imagen descifrada.</span>
               </div>
             </label>
           </div>
-        </div>
-        <div class="param-field">
-          <label for="rounds-input">Rondas / generaciones</label>
-          <input id="rounds-input" type="number" min="1" max="10000" step="1" value="10">
-          <div class="param-help">Cada ronda equivale a una permutación y una generación del autómata.</div>
+        </section>
+
+        <section class="flow-card" id="step-files-card">
+          <div class="flow-card-head">
+            <div>
+              <h3 id="file-step-title">Carga la imagen de entrada</h3>
+              <p id="file-step-copy">Selecciona una imagen PNG, BMP o TIFF. Se mostrará su vista previa y una recomendación de rondas basada en el tamaño detectado.</p>
+            </div>
+          </div>
+
+          <div class="upload-zone" id="drop-zone">
+            <input type="file" id="file-input" accept=".png,.bmp,.tif,.tiff,image/png,image/bmp,image/tiff">
+            <div class="upload-icon">🖼️</div>
+            <div class="upload-text">
+              Arrastra una imagen aquí o <span id="pick-btn">haz clic para seleccionar</span>
+            </div>
+            <div class="upload-text upload-formats">PNG · BMP · TIFF</div>
+          </div>
+
+          <div class="file-status-strip panel-hidden" id="encrypt-file-summary">
+            <div class="file-status-badge ok" id="encrypt-file-badge">Imagen lista</div>
+            <div class="file-status-meta" id="encrypt-file-meta"></div>
+          </div>
+
+          <div class="decrypt-panel panel-hidden" id="decrypt-panel">
+            <div class="param-grid">
+              <div class="file-field">
+                <label for="decrypt-cipher">Archivo cifrado (.bin)</label>
+                <div class="file-picker">
+                  <input type="file" id="decrypt-cipher" accept=".bin,application/octet-stream">
+                  <label class="file-picker-btn" for="decrypt-cipher">Examinar archivo</label>
+                  <span class="file-picker-name" id="decrypt-cipher-name">No se ha seleccionado ningún archivo</span>
+                </div>
+              </div>
+              <div class="file-field">
+                <label for="decrypt-prev">Archivo previo (.prev.bin)</label>
+                <div class="file-picker">
+                  <input type="file" id="decrypt-prev" accept=".bin,application/octet-stream">
+                  <label class="file-picker-btn" for="decrypt-prev">Examinar archivo</label>
+                  <span class="file-picker-name" id="decrypt-prev-name">No se ha seleccionado ningún archivo</span>
+                </div>
+              </div>
+              <div class="file-field">
+                <label for="decrypt-session">Archivo de sesión (.session.txt)</label>
+                <div class="file-picker">
+                  <input type="file" id="decrypt-session" accept=".txt,text/plain">
+                  <label class="file-picker-btn" for="decrypt-session">Examinar archivo</label>
+                  <span class="file-picker-name" id="decrypt-session-name">No se ha seleccionado ningún archivo</span>
+                </div>
+              </div>
+            </div>
+            <div class="decrypt-checklist" id="decrypt-checklist">
+              <div class="decrypt-check-item" data-file="cipher">Falta el archivo cifrado <strong>.bin</strong></div>
+              <div class="decrypt-check-item" data-file="prev">Falta el estado previo <strong>.prev.bin</strong></div>
+              <div class="decrypt-check-item" data-file="session">Falta la sesión <strong>.session.txt</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="flow-card panel-hidden" id="encrypt-workspace">
+          <div class="flow-card-head">
+            <div>
+              <h3>Ajusta la ejecución</h3>
+              <p>Define el tipo de sesión criptográfica y el número de rondas. Puedes usar un preset rápido o ajustar manualmente el valor exacto.</p>
+            </div>
+          </div>
+
+          <div class="flow-config-grid">
+            <div class="control-panel" id="encrypt-controls">
+              <div>
+                <div class="control-title" style="margin-bottom:.65rem">Sesión criptográfica</div>
+                <div class="session-modes">
+                  <label class="session-option">
+                    <input type="radio" name="session-mode" value="independent" checked>
+                    <div class="session-copy">
+                      <strong>Sesión independiente</strong>
+                      <span>Cada implementación genera su propia sesión criptográfica.</span>
+                    </div>
+                  </label>
+                  <label class="session-option">
+                    <input type="radio" name="session-mode" value="shared">
+                    <div class="session-copy">
+                      <strong>Sesión compartida</strong>
+                      <span>Se genera una única sesión criptográfica para todas las implementaciones.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="param-field">
+                <label for="rounds-input">Rondas / generaciones</label>
+                <input id="rounds-input" type="number" min="1" max="10000" step="1" value="10">
+                <div class="param-help">Cada ronda equivale a una permutación y una generación del autómata.</div>
+              </div>
+
+              <div class="rounds-recommendation" id="rounds-recommendation"><strong>Nota:</strong> Selecciona una imagen para ver una recomendación de rondas según su tamaño.</div>
+            </div>
+
+            <div id="preview-row">
+              <div class="preview-card-head">
+                <div class="preview-label">Vista previa</div>
+                <div class="preview-meta" id="preview-meta">Aún no hay dimensiones disponibles.</div>
+              </div>
+              <div class="preview-item">
+                <canvas id="preview-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="flow-card flow-run-card" id="step-run-card">
+          <div class="flow-card-head">
+            <div>
+              <h3>Ejecuta la operación</h3>
+              <p id="run-helper">Selecciona primero un modo y los archivos requeridos. Cuando el flujo esté completo, podrás lanzar la ejecución desde aquí.</p>
+            </div>
+          </div>
+          <button class="run-btn" id="run-btn" onclick="runOperation()">
+            ▶ Ejecutar cifrado
+          </button>
+        </section>
+
+        <div id="progress">
+          <div class="progress-head">
+            <div class="progress-kicker">Ejecución en curso</div>
+            <div class="progress-summary" id="progress-summary">Preparando la solicitud…</div>
+          </div>
+          <div class="progress-line" id="row-java"><div class="spinner" id="sp-java"></div><span id="msg-java">Preparando imagen…</span></div>
+          <div class="progress-line" id="row-c" style="opacity:.4"><div class="spinner" id="sp-c"></div><span id="msg-c">Esperando el turno de C…</span></div>
+          <div class="progress-line" id="row-cs" style="opacity:.4"><div class="spinner" id="sp-cs"></div><span id="msg-cs">Esperando el turno de C#…</span></div>
         </div>
       </div>
-      <div class="rounds-recommendation" id="rounds-recommendation"><strong>Nota:</strong> Selecciona una imagen para ver una recomendación de rondas según su tamaño.</div>
     </div>
-
-    <!-- Preview -->
-    <div id="preview-row">
-      <div class="preview-item">
-        <div class="preview-label">Imagen seleccionada</div>
-        <canvas id="preview-canvas"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <div class="decrypt-panel panel-hidden" id="decrypt-panel">
-    <div class="param-grid">
-      <div class="file-field">
-        <label for="decrypt-cipher">Archivo cifrado (.bin)</label>
-        <div class="file-picker">
-          <input type="file" id="decrypt-cipher" accept=".bin,application/octet-stream">
-          <label class="file-picker-btn" for="decrypt-cipher">Examinar archivo</label>
-          <span class="file-picker-name" id="decrypt-cipher-name">No se ha seleccionado ningún archivo</span>
-        </div>
-      </div>
-      <div class="file-field">
-        <label for="decrypt-prev">Archivo previo (.prev.bin)</label>
-        <div class="file-picker">
-          <input type="file" id="decrypt-prev" accept=".bin,application/octet-stream">
-          <label class="file-picker-btn" for="decrypt-prev">Examinar archivo</label>
-          <span class="file-picker-name" id="decrypt-prev-name">No se ha seleccionado ningún archivo</span>
-        </div>
-      </div>
-      <div class="file-field">
-        <label for="decrypt-session">Archivo de sesión (.session.txt)</label>
-        <div class="file-picker">
-          <input type="file" id="decrypt-session" accept=".txt,text/plain">
-          <label class="file-picker-btn" for="decrypt-session">Examinar archivo</label>
-          <span class="file-picker-name" id="decrypt-session-name">No se ha seleccionado ningún archivo</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <button class="run-btn" id="run-btn" onclick="runOperation()">
-    ▶ Ejecutar cifrado
-  </button>
-
-  <!-- Progress -->
-  <div id="progress">
-    <div class="progress-line" id="row-java"><div class="spinner" id="sp-java"></div><span id="msg-java">Ejecutando Java…</span></div>
-    <div class="progress-line" id="row-c" style="opacity:.4"><div class="spinner" id="sp-c"></div><span id="msg-c">Esperando C…</span></div>
-    <div class="progress-line" id="row-cs" style="opacity:.4"><div class="spinner" id="sp-cs"></div><span id="msg-cs">Esperando C#…</span></div>
-  </div>
+  </section>
 
   <!-- Results -->
   <div id="results">
+    <div class="results-stage-head">
+      <div class="results-stage-kicker">Resultados de la ejecución</div>
+      <h2 class="results-stage-title" id="results-stage-title">Resultados disponibles</h2>
+      <p class="results-stage-copy" id="results-stage-copy">La ejecución terminó. Aquí se muestran las salidas generadas a partir de la configuración anterior.</p>
+    </div>
+    <div class="results-context-card" id="results-context-card"></div>
     <div class="results-nav-label panel-hidden" id="results-tabs-label">Vista de resultados</div>
     <div class="results-tabs panel-hidden" id="results-tabs" aria-label="Pestañas de resultados">
       <button type="button" class="results-tab active" data-panel="results-summary-panel">Resumen</button>
@@ -138,11 +194,11 @@
     <div class="results-nav-label panel-hidden" id="results-nav-label">Ir a sección</div>
     <div class="results-nav panel-hidden" id="results-nav" aria-label="Navegación de resultados">
       <button type="button" class="results-nav-link" data-target="images-section-title">Visual</button>
-      <button type="button" class="results-nav-link" data-target="download-section-title" data-mode="full">Descargas</button>
       <button type="button" class="results-nav-link" data-target="perf-section-title" data-mode="full">Rendimiento</button>
       <button type="button" class="results-nav-link" data-target="metricas-criptograficas" data-mode="full">Métricas</button>
       <button type="button" class="results-nav-link" data-target="hist-section-title" data-mode="full">Histogramas</button>
       <button type="button" class="results-nav-link" data-target="table-section-title" data-mode="full">Comparación</button>
+      <button type="button" class="results-nav-link" data-target="download-section-title" data-mode="full">Descargas</button>
       <button type="button" class="results-nav-link" data-target="export-section-title" data-mode="decrypt">Exportar</button>
       <button type="button" class="results-nav-link" data-target="guide-section-title" data-mode="full">Guía</button>
       <button type="button" class="results-nav-link" data-target="how-section-title" data-mode="full">Proceso</button>
