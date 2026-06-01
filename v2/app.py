@@ -238,6 +238,70 @@ def rewrite_session_files_in_workdir(workdir: Path, original_format: str) -> Non
         )
 
 
+def collect_bundle_artifacts(result: dict) -> list[Path]:
+    files: list[Path] = []
+    for key in ("cipher_path", "prev_path", "session_file"):
+        value = result.get(key)
+        if not value:
+            continue
+        path = Path(value)
+        if path.exists() and path.is_file():
+            files.append(path)
+    return files
+
+
+def classify_bundle_artifact_name(name: str) -> str | None:
+    lower = name.lower()
+    if lower.endswith(".session.txt"):
+        return "session"
+    if lower.endswith(".prev.bin"):
+        return "prev"
+    if lower.endswith(".bin"):
+        return "cipher"
+    return None
+
+
+def extract_bundle_artifacts(bundle_file, tmpdir: Path) -> dict[str, dict[str, Path]]:
+    extracted: dict[str, dict[str, Path]] = {}
+    duplicates: list[str] = []
+    bundle_stream = getattr(bundle_file, "stream", bundle_file)
+    with zipfile.ZipFile(bundle_stream) as zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            rel = Path(info.filename)
+            if len(rel.parts) < 2:
+                continue
+            folder = rel.parts[0]
+            kind = classify_bundle_artifact_name(rel.name)
+            if not kind:
+                continue
+            lang_bucket = extracted.setdefault(folder, {})
+            if kind in lang_bucket:
+                duplicates.append(f"{folder}:{kind}")
+                continue
+            target_dir = tmpdir / folder
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / rel.name
+            with zf.open(info, "r") as src, target_path.open("wb") as dst:
+                shutil.copyfileobj(src, dst)
+            lang_bucket[kind] = target_path
+    if duplicates:
+        raise ValueError("El paquete .zip contiene múltiples archivos candidatos para el mismo artefacto.")
+    return extracted
+
+
+def build_session_from_artifacts(session_path: Path, cipher_path: Path, prev_path: Path) -> tuple[dict[str, str], str, str]:
+    session_data = parse_session_file(session_path)
+    session_data["x_cur_path"] = str(cipher_path)
+    session_data["x_prev_path"] = str(prev_path)
+    original_format = session_data.get("original_format", "png").lower()
+    if original_format not in EXPORT_FORMATS:
+        original_format = "png"
+    output_suffix = EXPORT_FORMATS[original_format][1]
+    return session_data, original_format, output_suffix
+
+
 def new_shared_session() -> dict[str, str]:
     return {
         "z_hex": os.urandom(32).hex(),
@@ -513,6 +577,9 @@ def run_parallel_jobs(jobs: list[tuple[str, callable]]) -> list[dict]:
 
 def finalize_result(lang: str, workdir: Path, original_png: Path, cipher_preview: Path, recovered_png: Path, elapsed_s: float) -> dict:
     img = Image.open(cipher_preview).convert("RGB")
+    session_file = next(workdir.glob("*.session.txt"), None)
+    session = parse_session_file(session_file) if session_file and session_file.exists() else {}
+    recovered_meta = describe_png(recovered_png)
     return {
         "lang": lang,
         "size": f"{img.height}x{img.width}",
@@ -523,6 +590,11 @@ def finalize_result(lang: str, workdir: Path, original_png: Path, cipher_preview
         "recovery": compare_recovery(original_png, recovered_png),
         "cipher_img": img_to_b64(cipher_preview),
         "recovered_img": img_to_b64(recovered_png),
+        "sha256_output": recovered_meta["sha256_png"],
+        "sha256_rgb": recovered_meta["sha256_rgb"],
+        "session_file": str(session_file) if session_file else None,
+        "cipher_path": session.get("x_cur_path"),
+        "prev_path": session.get("x_prev_path"),
         "preview_path": str(cipher_preview),
         "workdir": str(workdir),
     }
@@ -540,6 +612,8 @@ def summarize_encryption_result(lang: str, workdir: Path, cipher_preview: Path, 
         "recovery": None,
         "cipher_img": img_to_b64(cipher_preview),
         "recovered_img": None,
+        "sha256_output": None,
+        "sha256_rgb": None,
         "session_file": str(Path(str(session["x_cur_path"]) + ".session.txt")) if "x_cur_path" in session else None,
         "cipher_path": session.get("x_cur_path"),
         "prev_path": session.get("x_prev_path"),
@@ -548,18 +622,16 @@ def summarize_encryption_result(lang: str, workdir: Path, cipher_preview: Path, 
     }
 
 
-def build_bundle_zip(session_id: str, items: list[tuple[str, Path]]) -> str | None:
+def build_bundle_zip(session_id: str, items: list[tuple[str, list[Path]]]) -> str | None:
     if not items:
         return None
     ensure_session_dirs(session_id)
     filename = unique_name("cipher_bundle", ".zip")
     bundle_path = session_download_root(session_id) / filename
     with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for label, folder in items:
-            if not folder.exists():
-                continue
-            for child in folder.iterdir():
-                if child.is_file():
+        for label, files in items:
+            for child in files:
+                if child.exists() and child.is_file():
                     zf.write(child, arcname=f"{label}/{child.name}")
     return filename
 
@@ -852,12 +924,14 @@ def api_run():
         except OSError:
             pass
 
-    bundle_items: list[tuple[str, Path]] = []
+    bundle_items: list[tuple[str, list[Path]]] = []
     for result in (java_r, c_r, cs_r):
         if not result.get("error") and result.get("workdir"):
             workdir = Path(result["workdir"])
             rewrite_session_files_in_workdir(workdir, original_format)
-            bundle_items.append((result["lang"], workdir))
+            artifacts = collect_bundle_artifacts(result)
+            if artifacts:
+                bundle_items.append((result["lang"], artifacts))
     bundle_name = build_bundle_zip(session_id, bundle_items)
 
     response = {
@@ -916,12 +990,14 @@ def api_encrypt_only():
         except OSError:
             pass
 
-    bundle_items: list[tuple[str, Path]] = []
+    bundle_items: list[tuple[str, list[Path]]] = []
     for result in (java_r, c_r, cs_r):
         if not result.get("error") and result.get("workdir"):
             workdir = Path(result["workdir"])
             rewrite_session_files_in_workdir(workdir, original_format)
-            bundle_items.append((result["lang"], workdir))
+            artifacts = collect_bundle_artifacts(result)
+            if artifacts:
+                bundle_items.append((result["lang"], artifacts))
     bundle_name = build_bundle_zip(session_id, bundle_items)
 
     response = {
@@ -943,30 +1019,79 @@ def api_decrypt_only():
     session_id = get_session_id()
     clear_session_artifacts(session_id)
 
-    required = ("cipher", "prev", "session")
-    for key in required:
-        if key not in request.files:
-            return jsonify({"error": f"Falta el archivo requerido: {key}"}), 400
-
     tmpdir = make_runtime_dir(session_id, "decrypt_")
-    cipher_file = tmpdir / request.files["cipher"].filename
-    prev_file = tmpdir / request.files["prev"].filename
-    session_file = tmpdir / request.files["session"].filename
-    request.files["cipher"].save(cipher_file)
-    request.files["prev"].save(prev_file)
-    request.files["session"].save(session_file)
+    artifact_map: dict[str, dict[str, Path]] = {}
+    bundle_name = None
 
-    base_session = parse_session_file(session_file)
-    base_session["x_cur_path"] = str(cipher_file)
-    base_session["x_prev_path"] = str(prev_file)
-    original_format = base_session.get("original_format", "png").lower()
-    if original_format not in EXPORT_FORMATS:
-        original_format = "png"
-    output_suffix = EXPORT_FORMATS[original_format][1]
-    output_label = original_format.upper()
+    if "bundle" in request.files and request.files["bundle"].filename:
+        bundle_upload = request.files["bundle"]
+        bundle_name = bundle_upload.filename
+        try:
+            artifact_map = extract_bundle_artifacts(bundle_upload, tmpdir)
+        except zipfile.BadZipFile:
+            return jsonify({"error": "El paquete .zip no es válido o está corrupto."}), 400
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        if not artifact_map:
+            return jsonify({"error": "El paquete .zip no contiene artefactos de cifrado válidos."}), 400
+    else:
+        required = ("cipher", "prev", "session")
+        for key in required:
+            if key not in request.files:
+                return jsonify({"error": f"Falta el archivo requerido: {key}"}), 400
+        cipher_file = tmpdir / request.files["cipher"].filename
+        prev_file = tmpdir / request.files["prev"].filename
+        session_file = tmpdir / request.files["session"].filename
+        request.files["cipher"].save(cipher_file)
+        request.files["prev"].save(prev_file)
+        request.files["session"].save(session_file)
+        shared_artifacts = {
+            "cipher": cipher_file,
+            "prev": prev_file,
+            "session": session_file,
+        }
+        artifact_map = {
+            "Java": dict(shared_artifacts),
+            "C": dict(shared_artifacts),
+            "C#": dict(shared_artifacts),
+        }
+
+    folder_aliases = {
+        "Java": ["Java"],
+        "C": ["C"],
+        "C#": ["C#", "Csharp", "csharp"],
+    }
+
+    def resolve_artifacts(language: str) -> dict[str, Path] | None:
+        for alias in folder_aliases[language]:
+            if alias in artifact_map:
+                return artifact_map[alias]
+        return None
 
     def decrypt_language(language: str) -> dict:
-        session_data = dict(base_session)
+        artifacts = resolve_artifacts(language)
+        if not artifacts:
+            return {
+                "lang": language,
+                "elapsed_s": 0.0,
+                "status": "ERROR",
+                "error": "No se encontraron artefactos para esta implementación dentro del paquete proporcionado.",
+            }
+        missing = [key for key in ("cipher", "prev", "session") if key not in artifacts]
+        if missing:
+            return {
+                "lang": language,
+                "elapsed_s": 0.0,
+                "status": "ERROR",
+                "error": f"Faltan artefactos requeridos para {language}: {', '.join(missing)}.",
+            }
+
+        session_data, original_format, output_suffix = build_session_from_artifacts(
+            artifacts["session"],
+            artifacts["cipher"],
+            artifacts["prev"],
+        )
+        output_label = original_format.upper()
         out_recovered = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}.png"
         out_exported = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}{output_suffix}"
         t0 = time.perf_counter()
@@ -1026,6 +1151,7 @@ def api_decrypt_only():
 
     response = {
         "mode": "decrypt",
+        "bundle_name": bundle_name,
         "results": results,
     }
     return jsonify(response)

@@ -15,15 +15,13 @@
 </header>
 
 <main>
-  <div class="workspace-label">Configuración de ejecución</div>
   <section class="flow-shell">
     <div class="flow-layout">
       <div class="flow-main">
         <section class="flow-card" id="step-mode-card">
           <div class="flow-card-head">
             <div>
-              <h3>Elige el modo de operación</h3>
-              <p>Selecciona si quieres ejecutar el flujo completo de cifrado y comparación o recuperar una imagen desde artefactos ya generados.</p>
+              <h3>Elige un modo de operación</h3>
             </div>
           </div>
           <div class="op-modes">
@@ -31,7 +29,7 @@
               <input type="radio" name="operation-mode" value="full">
               <div class="op-copy">
                 <strong>Cifrado</strong>
-                <span>Ejecuta el flujo completo, compara Java, C y C# con recuperación y permite descargar los archivos del cifrado.</span>
+                <span>Ejecuta el flujo completo, compara Java, C y C# y permite descargar los archivos del cifrado.</span>
               </div>
             </label>
             <label class="op-option">
@@ -48,7 +46,7 @@
           <div class="flow-card-head">
             <div>
               <h3 id="file-step-title">Carga la imagen de entrada</h3>
-              <p id="file-step-copy">Selecciona una imagen PNG, BMP o TIFF. Se mostrará su vista previa y una recomendación de rondas basada en el tamaño detectado.</p>
+              <p id="file-step-copy">Selecciona una imagen en formato PNG, BMP o TIFF.</p>
             </div>
           </div>
 
@@ -67,6 +65,39 @@
           </div>
 
           <div class="decrypt-panel panel-hidden" id="decrypt-panel">
+            <div class="decrypt-source-toggle">
+              <label class="decrypt-source-option">
+                <input type="radio" name="decrypt-source-mode" value="bundle" checked>
+                <div class="decrypt-source-copy">
+                  <strong>Paquete .zip</strong>
+                  <span>Usa directamente el archivo descargado desde el cifrado.</span>
+                </div>
+              </label>
+              <label class="decrypt-source-option">
+                <input type="radio" name="decrypt-source-mode" value="manual">
+                <div class="decrypt-source-copy">
+                  <strong>Archivos individuales</strong>
+                  <span>Selecciona manualmente los archivos del cifrado.</span>
+                </div>
+              </label>
+            </div>
+
+            <div id="decrypt-bundle-section">
+              <div class="file-field">
+                <label for="decrypt-bundle">Paquete de cifrado (.zip)</label>
+                <div class="file-picker">
+                  <input type="file" id="decrypt-bundle" accept=".zip,application/zip">
+                  <label class="file-picker-btn" for="decrypt-bundle">Examinar paquete</label>
+                  <span class="file-picker-name" id="decrypt-bundle-name">No se ha seleccionado ningún archivo</span>
+                </div>
+              </div>
+              <div class="file-status-strip panel-hidden" id="decrypt-bundle-summary">
+                <div class="file-status-badge ok">Paquete listo</div>
+                <div class="file-status-meta" id="decrypt-bundle-meta"></div>
+              </div>
+            </div>
+
+            <div id="decrypt-manual-section" class="panel-hidden">
             <div class="param-grid">
               <div class="file-field">
                 <label for="decrypt-cipher">Archivo cifrado (.bin)</label>
@@ -98,6 +129,7 @@
               <div class="decrypt-check-item" data-file="prev">Falta el estado previo <strong>.prev.bin</strong></div>
               <div class="decrypt-check-item" data-file="session">Falta la sesión <strong>.session.txt</strong></div>
             </div>
+            </div>
           </div>
         </section>
 
@@ -105,7 +137,7 @@
           <div class="flow-card-head">
             <div>
               <h3>Ajusta la ejecución</h3>
-              <p>Define el tipo de sesión criptográfica y el número de rondas. Puedes usar un preset rápido o ajustar manualmente el valor exacto.</p>
+              <p>Define el tipo de sesión criptográfica y el número de rondas.</p>
             </div>
           </div>
 
@@ -143,7 +175,6 @@
             <div id="preview-row">
               <div class="preview-card-head">
                 <div class="preview-label">Vista previa</div>
-                <div class="preview-meta" id="preview-meta">Aún no hay dimensiones disponibles.</div>
               </div>
               <div class="preview-item">
                 <canvas id="preview-canvas"></canvas>
@@ -180,7 +211,6 @@
   <!-- Results -->
   <div id="results">
     <div class="results-stage-head">
-      <div class="results-stage-kicker">Resultados de la ejecución</div>
       <h2 class="results-stage-title" id="results-stage-title">Resultados disponibles</h2>
       <p class="results-stage-copy" id="results-stage-copy">La ejecución terminó. Aquí se muestran las salidas generadas a partir de la configuración anterior.</p>
     </div>

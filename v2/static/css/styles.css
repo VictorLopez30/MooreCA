@@ -50,7 +50,6 @@
   .preview-item{display:flex;flex-direction:column;gap:.4rem;align-items:center}
   .preview-item img,.preview-item canvas{width:512px;height:512px;object-fit:contain;border-radius:6px;border:1px solid var(--border);image-rendering:pixelated;background:#ffffff;}
   .preview-label{font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
-  .preview-meta{font-size:.85rem;color:#475569;font-weight:600}
   .run-btn{background:#2563eb;color:#ffffff;font-family:'Manrope',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.05em;text-transform:uppercase;border:none;border-radius:10px;padding:1rem 2.5rem;cursor:pointer;transition:background .2s, transform .2s;box-shadow:none;display:none;justify-self:start}
   .run-btn:hover{background:#1d4ed8;transform:translateY(-1px);}
   .run-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
@@ -81,6 +80,14 @@
   .rounds-recommendation{margin-top:1rem;padding:.9rem 1rem;background:rgba(37,99,235,.06);border:1px solid var(--border);border-radius:6px;font-size:.85rem;line-height:1.6;font-weight:600;color:var(--text)}
   .panel-hidden{display:none!important}
   .decrypt-panel{display:grid;gap:1rem;padding:0;background:transparent;border:none;border-radius:0}
+  .decrypt-source-toggle{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem}
+  .decrypt-source-option{display:block;padding:.9rem 1rem;border:1px solid #9fbef0;border-radius:10px;background:#ffffff;cursor:pointer;transition:border-color .2s,background .2s,box-shadow .2s,transform .2s}
+  .decrypt-source-option:hover{border-color:var(--select-border);background:rgba(37,99,235,.08)}
+  .decrypt-source-option input{display:none}
+  .decrypt-source-option.selected{border-color:var(--select-border);background:var(--select-bg);box-shadow:0 0 0 2px var(--select-shadow) inset;transform:translateY(-1px)}
+  .decrypt-source-copy{display:grid;gap:.18rem}
+  .decrypt-source-copy strong{font-size:.92rem;color:#0f172a}
+  .decrypt-source-copy span{font-size:.84rem;color:#475569;line-height:1.55;font-weight:600}
   .file-field{display:flex;flex-direction:column;gap:.35rem}
   .file-field label{font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:700}
   .file-field input,.file-field select{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Manrope',sans-serif;font-size:.98rem;padding:.8rem .9rem;outline:none}
@@ -158,6 +165,7 @@
   .summary-stat{display:flex;justify-content:space-between;gap:.6rem}
   .summary-stat-label{color:#475569;font-weight:700}
   .summary-stat-value{color:#0f172a;font-weight:800;text-align:right}
+  .summary-stat-value-hash{font-size:.78rem;line-height:1.45;word-break:break-all;max-width:100%}
   .summary-image-strip{display:flex;gap:.55rem;flex-wrap:wrap}
   .summary-image-card{display:flex;flex-direction:column;gap:.28rem;align-items:center}
   .summary-image-card img{width:74px;height:74px;border-radius:10px;border:1px solid #d6e3fb;background:#ffffff;object-fit:contain;image-rendering:pixelated;cursor:zoom-in;box-shadow:0 8px 16px rgba(37,99,235,.05)}
@@ -220,7 +228,7 @@
   .stagger>*{opacity:0;animation:fadeIn .4s ease forwards}
   .stagger>*:nth-child(1){animation-delay:.05s}.stagger>*:nth-child(2){animation-delay:.12s}.stagger>*:nth-child(3){animation-delay:.19s}
   @media (max-width: 900px){
-    .op-modes,.flow-steps,.flow-layout,.flow-config-grid{grid-template-columns:1fr}
+    .op-modes,.flow-steps,.flow-layout,.flow-config-grid,.decrypt-source-toggle{grid-template-columns:1fr}
   }
 
 @media (max-width: 640px){
@@ -254,7 +262,7 @@ body.lightbox-open{overflow:hidden;}
 .ui-dialog-badge{font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#1d4ed8;}
 .ui-dialog-title{font-size:1.35rem;line-height:1.2;font-weight:800;color:#000000;}
 .ui-dialog-message{font-size:.98rem;line-height:1.7;color:#0f172a;}
-.ui-dialog-actions{display:flex;justify-content:flex-end;}
+.ui-dialog-actions{display:flex;justify-content:flex-end;gap:.75rem;flex-wrap:wrap;}
 .ui-dialog-primary{min-width:140px;}
 body.dialog-open{overflow:hidden;}
 .export-dialog-card{width:min(620px,92vw);}

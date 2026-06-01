@@ -51,6 +51,7 @@ syncSessionModeUi();
 syncOperationModeUi();
 bindUiDialog();
 bindDecryptFilePickers();
+bindDecryptSourceModeUi();
 bindExportDialog();
 bindResultsNavigation();
 bindResultsTabs();
@@ -58,6 +59,32 @@ document.getElementById('rounds-input')?.addEventListener('input', syncWorkflowS
 syncWorkflowState();
 
 function bindDecryptFilePickers() {
+  [
+    ['decrypt-bundle', 'decrypt-bundle-name'],
+  ].forEach(([inputId, labelId]) => {
+    const input = document.getElementById(inputId);
+    const label = document.getElementById(labelId);
+    if (!input || !label || input.dataset.bound === '1') return;
+
+    const updateLabel = () => {
+      const file = input.files && input.files[0] ? input.files[0] : null;
+      label.textContent = file ? file.name : 'No se ha seleccionado ningún archivo';
+      const summary = document.getElementById('decrypt-bundle-summary');
+      const meta = document.getElementById('decrypt-bundle-meta');
+      if (summary) summary.classList.toggle('panel-hidden', !file);
+      if (meta) meta.textContent = file ? `${file.name} · ZIP · ${formatBytes(file.size)}` : '';
+      lastDecryptResultData = null;
+      if (currentMode === 'decrypt') {
+        hideResultsView();
+      }
+      syncWorkflowState();
+    };
+
+    input.addEventListener('change', updateLabel);
+    updateLabel();
+    input.dataset.bound = '1';
+  });
+
   [
     ['decrypt-cipher', 'decrypt-cipher-name'],
     ['decrypt-prev', 'decrypt-prev-name'],
@@ -83,6 +110,30 @@ function bindDecryptFilePickers() {
     updateLabel();
     input.dataset.bound = '1';
   });
+}
+
+function getDecryptSourceMode() {
+  return document.querySelector('input[name="decrypt-source-mode"]:checked')?.value || 'bundle';
+}
+
+function bindDecryptSourceModeUi() {
+  document.querySelectorAll('.decrypt-source-option input[name="decrypt-source-mode"]').forEach(input => {
+    if (input.dataset.bound === '1') return;
+    input.addEventListener('change', syncDecryptSourceModeUi);
+    input.dataset.bound = '1';
+  });
+  syncDecryptSourceModeUi();
+}
+
+function syncDecryptSourceModeUi() {
+  document.querySelectorAll('.decrypt-source-option').forEach(option => {
+    const input = option.querySelector('input[name="decrypt-source-mode"]');
+    option.classList.toggle('selected', !!input?.checked);
+  });
+  const mode = getDecryptSourceMode();
+  document.getElementById('decrypt-bundle-section')?.classList.toggle('panel-hidden', mode !== 'bundle');
+  document.getElementById('decrypt-manual-section')?.classList.toggle('panel-hidden', mode !== 'manual');
+  syncWorkflowState();
 }
 
 function bindUiDialog() {
@@ -264,8 +315,6 @@ function resetImageSelection() {
   if (roundsBox) {
     roundsBox.innerHTML = '<strong>Nota:</strong> Selecciona una imagen para ver una recomendación de rondas según su tamaño.';
   }
-  const previewMeta = document.getElementById('preview-meta');
-  if (previewMeta) previewMeta.textContent = 'Aún no hay dimensiones disponibles.';
   document.getElementById('encrypt-file-summary')?.classList.add('panel-hidden');
   const fileMeta = document.getElementById('encrypt-file-meta');
   if (fileMeta) fileMeta.textContent = '';
@@ -300,7 +349,7 @@ function renderResultsContext(data, mode = 'full') {
 
   if (mode === 'full') {
     title.textContent = 'Resultados del cifrado comparativo';
-    copy.textContent = 'Estos resultados se generaron a partir de la imagen y la configuración de ejecución seleccionadas arriba.';
+    copy.textContent = 'Estos resultados se generaron a partir de la imagen y la configuración seleccionadas.';
     const sourceName = uploadedFile?.name || 'Imagen actual';
     card.innerHTML = `
       <div class="results-context-chip">Modo: <strong>Cifrado</strong></div>
@@ -311,17 +360,28 @@ function renderResultsContext(data, mode = 'full') {
     `;
   } else {
     title.textContent = 'Resultados del descifrado';
-    copy.textContent = 'Estas salidas corresponden a los artefactos cargados en la sección de ejecución. Puedes revisar cada implementación y exportar la imagen recuperada.';
-    const cipherName = document.getElementById('decrypt-cipher')?.files?.[0]?.name || 'Artefactos cargados';
-    const prevName = document.getElementById('decrypt-prev')?.files?.[0]?.name || '—';
-    const sessionName = document.getElementById('decrypt-session')?.files?.[0]?.name || '—';
-    card.innerHTML = `
-      <div class="results-context-chip">Modo: <strong>Descifrado</strong></div>
-      <div class="results-context-chip">Cifrado: <strong>${cipherName}</strong></div>
-      <div class="results-context-chip">Previo: <strong>${prevName}</strong></div>
-      <div class="results-context-chip">Sesión: <strong>${sessionName}</strong></div>
-      <div class="results-context-chip">Implementaciones válidas: <strong>${validCount}/${results.length || 3}</strong></div>
-    `;
+    copy.textContent = 'Estas salidas corresponden a los archivos cargados en la sección de ejecución.';
+    if (getDecryptSourceMode() === 'bundle') {
+      const bundleName = data?.bundle_name || document.getElementById('decrypt-bundle')?.files?.[0]?.name || 'Paquete cargado';
+      card.innerHTML = `
+        <div class="results-context-chip">Modo: <strong>Descifrado</strong></div>
+        <div class="results-context-chip">Entrada: <strong>Paquete .zip</strong></div>
+        <div class="results-context-chip">Paquete: <strong>${bundleName}</strong></div>
+        <div class="results-context-chip">Implementaciones válidas: <strong>${validCount}/${results.length || 3}</strong></div>
+      `;
+    } else {
+      const cipherName = document.getElementById('decrypt-cipher')?.files?.[0]?.name || 'Artefactos cargados';
+      const prevName = document.getElementById('decrypt-prev')?.files?.[0]?.name || '—';
+      const sessionName = document.getElementById('decrypt-session')?.files?.[0]?.name || '—';
+      card.innerHTML = `
+        <div class="results-context-chip">Modo: <strong>Descifrado</strong></div>
+        <div class="results-context-chip">Entrada: <strong>Archivos individuales</strong></div>
+        <div class="results-context-chip">Cifrado: <strong>${cipherName}</strong></div>
+        <div class="results-context-chip">Previo: <strong>${prevName}</strong></div>
+        <div class="results-context-chip">Sesión: <strong>${sessionName}</strong></div>
+        <div class="results-context-chip">Implementaciones válidas: <strong>${validCount}/${results.length || 3}</strong></div>
+      `;
+    }
   }
 }
 
@@ -371,14 +431,10 @@ function updateRoundsRecommendation(width, height) {
 function updateEncryptFileSummary(file, width, height) {
   const summary = document.getElementById('encrypt-file-summary');
   const meta = document.getElementById('encrypt-file-meta');
-  const previewMeta = document.getElementById('preview-meta');
   if (summary) summary.classList.remove('panel-hidden');
   if (meta) {
     const ext = (file.name.split('.').pop() || '').toUpperCase();
     meta.textContent = `${file.name} · ${ext} · ${width} × ${height} px · ${formatBytes(file.size)}`;
-  }
-  if (previewMeta) {
-    previewMeta.textContent = `${width} × ${height} px · ${formatBytes(file.size)} · ${file.name}`;
   }
 }
 
@@ -415,10 +471,12 @@ function updateDecryptChecklist() {
 function syncWorkflowState() {
   const modeSelected = !!document.querySelector('input[name="operation-mode"]:checked');
   const isDecrypt = currentMode === 'decrypt';
+  const decryptSourceMode = getDecryptSourceMode();
+  const bundle = document.getElementById('decrypt-bundle')?.files?.[0];
   const cipher = document.getElementById('decrypt-cipher')?.files?.[0];
   const prev = document.getElementById('decrypt-prev')?.files?.[0];
   const session = document.getElementById('decrypt-session')?.files?.[0];
-  const filesReady = !modeSelected ? false : (isDecrypt ? !!(cipher && prev && session) : !!uploadedFile);
+  const filesReady = !modeSelected ? false : (isDecrypt ? (decryptSourceMode === 'bundle' ? !!bundle : !!(cipher && prev && session)) : !!uploadedFile);
   const roundsValue = parseInt(document.getElementById('rounds-input')?.value || '0', 10);
   const configReady = !modeSelected ? false : (isDecrypt ? true : Number.isFinite(roundsValue) && roundsValue >= 1);
   const runReady = modeSelected && filesReady && configReady;
@@ -435,18 +493,24 @@ function syncWorkflowState() {
     fileStepCopy.textContent = !modeSelected
       ? 'Elige si quieres cifrar o descifrar para mostrar solo los campos relevantes.'
       : (isDecrypt
-        ? 'Necesitas el binario cifrado, el estado previo y el archivo de sesión. El sistema te indicará qué archivo falta.'
-        : 'Selecciona una imagen PNG, BMP o TIFF. Se mostrará su vista previa y una recomendación de rondas basada en el tamaño detectado.');
+        ? (decryptSourceMode === 'bundle'
+          ? 'Sube el paquete .zip descargado desde el cifrado.'
+          : 'Necesitas el binario cifrado, el estado previo y el archivo de sesión.')
+        : 'Selecciona una imagen PNG, BMP o TIFF.');
   }
   if (helper) {
     helper.textContent = !modeSelected
       ? 'Selecciona primero el modo de operación para habilitar el flujo correspondiente.'
       : runReady
       ? (isDecrypt
-        ? 'Los tres archivos requeridos están listos. Puedes iniciar el descifrado cuando quieras.'
-        : 'La imagen, la configuración y la sesión están listas. Ejecuta la comparación para generar resultados.')
+        ? (decryptSourceMode === 'bundle'
+          ? 'Se puede realizar el descifrado con el paquete cargado.'
+          : 'Se puede realizar el descifrado con los archivos cargados.')
+        : 'Ejecuta la comparación para generar resultados.')
       : (isDecrypt
-        ? 'Completa los tres archivos del paquete de descifrado antes de ejecutar.'
+        ? (decryptSourceMode === 'bundle'
+          ? 'Selecciona el paquete .zip descargado desde el cifrado antes de ejecutar.'
+          : 'Selecciona los tres archivos del paquete de descifrado antes de ejecutar.')
         : uploadedFile
           ? 'Revisa la sesión y el número de rondas antes de ejecutar.'
           : 'Selecciona primero una imagen válida para habilitar la ejecución.');
@@ -507,6 +571,7 @@ function syncOperationModeUi() {
   document.getElementById('encrypt-workspace').classList.toggle('panel-hidden', !hasMode || isDecrypt || !uploadedFile);
   document.getElementById('decrypt-panel').classList.toggle('panel-hidden', !isDecrypt);
   document.getElementById('encrypt-file-summary')?.classList.toggle('panel-hidden', !hasMode || isDecrypt || !uploadedFile);
+  if (isDecrypt) syncDecryptSourceModeUi();
 
   const btn = document.getElementById('run-btn');
   btn.style.display = (!hasMode ? 'none' : (currentMode === 'decrypt' || !!uploadedFile) ? 'block' : 'none');
@@ -695,12 +760,20 @@ async function runOperation() {
   if (!currentMode) return;
   if (currentMode === 'full' && !uploadedFile) return;
   if (currentMode === 'decrypt') {
-    const cipher = document.getElementById('decrypt-cipher').files[0];
-    const prev = document.getElementById('decrypt-prev').files[0];
-    const session = document.getElementById('decrypt-session').files[0];
-    if (!cipher || !prev || !session) {
-      showUiDialog('Archivos incompletos', 'Selecciona los tres archivos requeridos para ejecutar el descifrado: .bin, .prev.bin y .session.txt.');
-      return;
+    if (getDecryptSourceMode() === 'bundle') {
+      const bundle = document.getElementById('decrypt-bundle').files[0];
+      if (!bundle) {
+        showUiDialog('Falta el paquete .zip', 'Selecciona el paquete descargado desde el cifrado para ejecutar el descifrado.');
+        return;
+      }
+    } else {
+      const cipher = document.getElementById('decrypt-cipher').files[0];
+      const prev = document.getElementById('decrypt-prev').files[0];
+      const session = document.getElementById('decrypt-session').files[0];
+      if (!cipher || !prev || !session) {
+        showUiDialog('Archivos incompletos', 'Selecciona los tres archivos requeridos para ejecutar el descifrado: .bin, .prev.bin y .session.txt.');
+        return;
+      }
     }
   }
   const btn = document.getElementById('run-btn');
@@ -709,8 +782,8 @@ async function runOperation() {
   const prog = document.getElementById('progress');
   prog.style.display = 'flex';
   setProgressSummary(currentMode === 'full'
-    ? 'Preparando la imagen y distribuyendo la ejecución entre implementaciones…'
-    : 'Validando artefactos y preparando el descifrado comparativo…');
+    ? 'Preparando la imagen y realizando el cifrado'
+    : 'Validando archivos y realizando el descifrado');
   hideResultsView();
 
   // Reset progress rows
@@ -735,9 +808,13 @@ async function runOperation() {
     fd.append('steps', String(rounds));
     endpoint = '/api/run';
   } else {
-    fd.append('cipher', document.getElementById('decrypt-cipher').files[0]);
-    fd.append('prev', document.getElementById('decrypt-prev').files[0]);
-    fd.append('session', document.getElementById('decrypt-session').files[0]);
+    if (getDecryptSourceMode() === 'bundle') {
+      fd.append('bundle', document.getElementById('decrypt-bundle').files[0]);
+    } else {
+      fd.append('cipher', document.getElementById('decrypt-cipher').files[0]);
+      fd.append('prev', document.getElementById('decrypt-prev').files[0]);
+      fd.append('session', document.getElementById('decrypt-session').files[0]);
+    }
     endpoint = '/api/decrypt-only';
   }
 
@@ -928,11 +1005,7 @@ function renderSummaryDashboard(data, mode = 'full') {
     overview.innerHTML = `
       <div class="summary-hero-top">
         <div>
-          <div class="summary-kicker">Resumen ejecutivo</div>
-          <div class="summary-title">${fastest ? `${fastest.lang} lidera el resultado actual` : 'Resultado disponible para revisión'}</div>
-          <div class="summary-copy">
-            Esta vista concentra el resultado general, los indicadores más relevantes y las acciones principales sin obligarte a entrar al análisis completo.
-          </div>
+          <div class="summary-title">${fastest ? `${fastest.lang} lidera los resultados obtenidos` : 'Resultado disponible para revisión'}</div>
         </div>
         <div class="summary-status ${statusClass}">${statusText}</div>
       </div>
@@ -953,35 +1026,29 @@ function renderSummaryDashboard(data, mode = 'full') {
     ? [
         {
           label: 'Más rápida',
-          value: fastest ? `${fastest.lang} · ${fastest.elapsed_s.toFixed(4)}s` : '—',
-          note: 'Menor tiempo total observado en la ejecución actual.'
+          value: fastest ? `${fastest.lang} · ${fastest.elapsed_s.toFixed(4)}s` : '—'
         },
         {
           label: 'Mayor entropía',
-          value: bestEntropy ? `${bestEntropy.lang} · ${bestEntropy.entropy.toFixed(4)} bits` : '—',
-          note: 'Valor más cercano a la distribución idealmente incierta.'
+          value: bestEntropy ? `${bestEntropy.lang} · ${bestEntropy.entropy.toFixed(4)} bits` : '—'
         },
         {
           label: 'Mejor correlación',
-          value: bestCorr ? `${bestCorr.lang} · ${bestCorr.corr.toFixed(4)}` : '—',
-          note: 'Valor absoluto más cercano a cero entre píxeles vecinos.'
+          value: bestCorr ? `${bestCorr.lang} · ${bestCorr.corr.toFixed(4)}` : '—'
         },
         {
           label: 'Recuperación',
-          value: `${recoveredCount}/${results.length}`,
-          note: 'Implementaciones que recuperaron la imagen exactamente.'
+          value: `${recoveredCount}/${results.length}`
         }
       ]
     : [
         {
           label: 'Recuperación disponible',
-          value: `${cleanResults.length}/${results.length}`,
-          note: 'Implementaciones que generaron una salida exportable.'
+          value: `${cleanResults.length}/${results.length}`
         },
         {
           label: 'Más rápida',
-          value: fastest ? `${fastest.lang} · ${fastest.elapsed_s.toFixed(4)}s` : '—',
-          note: 'Menor tiempo total observado en el descifrado actual.'
+          value: fastest ? `${fastest.lang} · ${fastest.elapsed_s.toFixed(4)}s` : '—'
         }
       ];
   if (mode === 'full') {
@@ -989,7 +1056,7 @@ function renderSummaryDashboard(data, mode = 'full') {
       <div class="summary-highlight">
         <div class="summary-highlight-label">${item.label}</div>
         <div class="summary-highlight-value">${item.value}</div>
-        <div class="summary-highlight-note">${item.note}</div>
+        ${item.note ? `<div class="summary-highlight-note">${item.note}</div>` : ''}
       </div>
     `).join('');
     highlights.classList.remove('panel-hidden');
@@ -1041,7 +1108,8 @@ function renderSummaryDashboard(data, mode = 'full') {
             ` : `
               <div class="summary-stat"><span class="summary-stat-label">Estado</span><span class="summary-stat-value">${result.status || (result.error ? 'ERROR' : 'OK')}</span></div>
               <div class="summary-stat"><span class="summary-stat-label">Formato</span><span class="summary-stat-value">${result.output_format_label || '—'}</span></div>
-              <div class="summary-stat"><span class="summary-stat-label">SHA-256</span><span class="summary-stat-value">${result.sha256_output ? `${result.sha256_output.slice(0, 12)}…` : '—'}</span></div>
+              <div class="summary-stat"><span class="summary-stat-label">SHA-256 archivo</span><span class="summary-stat-value summary-stat-value-hash">${result.sha256_output || '—'}</span></div>
+              <div class="summary-stat"><span class="summary-stat-label">SHA-256 RGB</span><span class="summary-stat-value summary-stat-value-hash">${result.sha256_rgb || '—'}</span></div>
             `}
           </div>
         </div>
@@ -1159,7 +1227,9 @@ function renderResults(data, mode='full') {
     {f:'Entropía',     j:last(jR).entropy?.toFixed(4), c:last(cR).entropy?.toFixed(4), cs:last(csR).entropy?.toFixed(4)},
     {f:'Chi²',         j:last(jR).chi?.toFixed(2),     c:last(cR).chi?.toFixed(2),     cs:last(csR).chi?.toFixed(2)},
     {f:'Correlación',  j:last(jR).corr?.toFixed(4),    c:last(cR).corr?.toFixed(4),    cs:last(csR).corr?.toFixed(4)},
-    {f:'SHA-256/Recuperación', j:`MessageDigest / ${jR.recovery||'—'}`, c:`OpenSSL / ${cR.recovery||'—'}`, cs:`System.Security / ${csR.recovery||'—'}`},
+    {f:'SHA-256 archivo reconstruido', j:jR.sha256_output||'—', c:cR.sha256_output||'—', cs:csR.sha256_output||'—'},
+    {f:'SHA-256 matriz RGB', j:jR.sha256_rgb||'—', c:cR.sha256_rgb||'—', cs:csR.sha256_rgb||'—'},
+    {f:'Recuperación', j:jR.recovery||'—', c:cR.recovery||'—', cs:csR.recovery||'—'},
     {f:'Entorno de ejecución', j:'JVM', c:'nativo -O2', cs:'.NET 8'},
   ];
   document.getElementById('comparison-table').innerHTML=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;padding:1rem">
@@ -1172,9 +1242,9 @@ function renderResults(data, mode='full') {
       </tr></thead>
       <tbody>${rows.map((r,i)=>`<tr style="border-bottom:1px solid var(--border);background:${i%2?'rgba(255,255,255,.01)':'transparent'}">
         <td style="padding:.5rem .4rem;color:var(--muted)">${r.f}</td>
-        <td style="padding:.5rem;text-align:center;color:var(--java-color)">${r.j??'—'}</td>
-        <td style="padding:.5rem;text-align:center;color:var(--c-color)">${r.c??'—'}</td>
-        <td style="padding:.5rem;text-align:center;color:var(--cs-color)">${r.cs??'—'}</td>
+        <td style="padding:.5rem;text-align:center;color:var(--java-color);word-break:break-all">${r.j??'—'}</td>
+        <td style="padding:.5rem;text-align:center;color:var(--c-color);word-break:break-all">${r.c??'—'}</td>
+        <td style="padding:.5rem;text-align:center;color:var(--cs-color);word-break:break-all">${r.cs??'—'}</td>
       </tr>`).join('')}</tbody>
     </table></div>`;
 
