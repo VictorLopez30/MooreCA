@@ -1094,21 +1094,23 @@ def api_decrypt_only():
         output_label = original_format.upper()
         out_recovered = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}.png"
         out_exported = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}{output_suffix}"
-        t0 = time.perf_counter()
 
         if language == "C":
             ok, msg = ensure_c_binaries()
             err = None if ok else msg
+            t0 = time.perf_counter()
             if ok:
                 err = decrypt_c_from_session(session_data, out_recovered)
         elif language == "Java":
             ok, msg = ensure_java_build()
             err = None if ok else msg
+            t0 = time.perf_counter()
             if ok:
                 err = decrypt_java_from_session(session_data, out_recovered)
         else:
             ok, msg = ensure_cs_projects()
             err = None if ok else msg
+            t0 = time.perf_counter()
             if ok:
                 err = decrypt_cs_from_session(session_data, out_recovered)
 

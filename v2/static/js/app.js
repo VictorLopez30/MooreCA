@@ -1122,12 +1122,8 @@ function renderSummaryDashboard(data, mode = 'full') {
     if (data.bundle_url) {
       actions.innerHTML += `<button class="secondary-btn" id="summary-download-bundle-btn">Descargar archivos del cifrado (.zip)</button>`;
     }
-    actions.innerHTML += `<button class="secondary-btn" id="summary-open-analysis-btn">Ir a análisis</button>`;
     document.getElementById('summary-download-bundle-btn')?.addEventListener('click', () => {
       saveUrlWithPicker(data.bundle_url, data.bundle_name || 'cipher_bundle.zip');
-    });
-    document.getElementById('summary-open-analysis-btn')?.addEventListener('click', () => {
-      activateResultsPanel('results-analysis-panel');
     });
   } else {
     const exportableResults = results.filter(r => r.download_url && r.download_name);
