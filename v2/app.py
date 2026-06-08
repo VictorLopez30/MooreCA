@@ -7,14 +7,17 @@ from __future__ import annotations
 import base64
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import hmac
 import io
 import math
 import os
 import shutil
 import subprocess
+import struct
 import tempfile
 import time
 import zipfile
+import zlib
 from pathlib import Path
 from uuid import uuid4
 
@@ -86,12 +89,130 @@ def img_to_b64(path: Path) -> str | None:
         return None
 
 
+def extract_alpha_session_entries(img: Image.Image) -> dict[str, str]:
+    if "A" in img.getbands():
+        alpha = img.getchannel("A")
+    elif "transparency" in img.info:
+        alpha = img.convert("RGBA").getchannel("A")
+    else:
+        return {}
+    compressed = zlib.compress(alpha.tobytes(), level=9)
+    return {
+        "alpha_present": "1",
+        "alpha_width": str(alpha.width),
+        "alpha_height": str(alpha.height),
+        "alpha_encoding": "zlib+base64",
+        "alpha_data": base64.b64encode(compressed).decode("ascii"),
+    }
+
+
+def session_has_alpha(session_data: dict[str, str]) -> bool:
+    return session_data.get("alpha_present") == "1" and bool(session_data.get("alpha_data"))
+
+
+def apply_alpha_from_session(image_path: Path, session_data: dict[str, str]) -> Path:
+    if not session_has_alpha(session_data):
+        return image_path
+    if session_data.get("alpha_encoding") != "zlib+base64":
+        raise ValueError("Codificación de alpha no soportada.")
+
+    alpha_width = int(session_data["alpha_width"])
+    alpha_height = int(session_data["alpha_height"])
+    alpha_bytes = zlib.decompress(base64.b64decode(session_data["alpha_data"]))
+    alpha_img = Image.frombytes("L", (alpha_width, alpha_height), alpha_bytes)
+
+    with Image.open(image_path) as img:
+        rgb = img.convert("RGB")
+        if rgb.size != alpha_img.size:
+            raise ValueError("El canal alpha no coincide con las dimensiones de la imagen recuperada.")
+        rgb.putalpha(alpha_img)
+        rgb.save(image_path, format="PNG")
+    return image_path
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(8192), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def store_le16(value: int) -> bytes:
+    return struct.pack("<H", value)
+
+
+def store_le32(value: int) -> bytes:
+    return struct.pack("<I", value)
+
+
+def hkdf_extract_sha256(salt: bytes, ikm: bytes) -> bytes:
+    real_salt = salt if salt else bytes(32)
+    return hmac.new(real_salt, ikm, hashlib.sha256).digest()
+
+
+def hkdf_expand_sha256(prk: bytes, info: bytes, length: int) -> bytes:
+    okm = bytearray()
+    t = b""
+    counter = 1
+    while len(okm) < length:
+        t = hmac.new(prk, t + info + bytes([counter]), hashlib.sha256).digest()
+        okm.extend(t)
+        counter += 1
+    return bytes(okm[:length])
+
+
+def build_info_suite(session_data: dict[str, str]) -> bytes:
+    return b"RCA|ctx|v2" + b"".join([
+        store_le32(int(session_data["alto"])),
+        store_le32(int(session_data["ancho"])),
+        store_le16(int(session_data["canales"])),
+        store_le16(int(session_data["rondas"])),
+    ])
+
+
+def derive_kmac_from_session(session_data: dict[str, str]) -> bytes:
+    z = bytes.fromhex(session_data["z_hex"])
+    salt = bytes.fromhex(session_data["salt_hex"])
+    prk = hkdf_extract_sha256(salt, z)
+    info = b"RCA|mac|v2" + build_info_suite(session_data)
+    return hkdf_expand_sha256(prk, info, 32)
+
+
+def build_mac_payload(session_data: dict[str, str], cipher_path: Path, prev_path: Path) -> bytes:
+    payload = {
+        "ancho": session_data["ancho"],
+        "alto": session_data["alto"],
+        "canales": session_data["canales"],
+        "rondas": session_data["rondas"],
+        "original_format": session_data.get("original_format", "png"),
+        "cipher_sha256": sha256_file(cipher_path),
+        "prev_sha256": sha256_file(prev_path),
+    }
+    for key in ("alpha_present", "alpha_width", "alpha_height", "alpha_encoding", "alpha_data"):
+        if session_data.get(key):
+            payload[key] = session_data[key]
+    lines = [f"{key}={payload[key]}" for key in sorted(payload)]
+    return ("\n".join(lines)).encode("utf-8")
+
+
+def compute_session_mac(session_data: dict[str, str], cipher_path: Path, prev_path: Path) -> str:
+    kmac = derive_kmac_from_session(session_data)
+    payload = build_mac_payload(session_data, cipher_path, prev_path)
+    return hmac.new(kmac, payload, hashlib.sha256).hexdigest()
+
+
+def verify_session_mac(session_data: dict[str, str], cipher_path: Path, prev_path: Path) -> tuple[bool, str | None]:
+    expected = session_data.get("mac_data")
+    if not expected:
+        return False, "La sesión no contiene un MAC de integridad."
+    if session_data.get("mac_alg", "").lower() != "hmac-sha256":
+        return False, "El algoritmo MAC de la sesión no es soportado."
+    try:
+        actual = compute_session_mac(session_data, cipher_path, prev_path)
+    except Exception as exc:
+        return False, f"No se pudo recalcular el MAC: {exc}"
+    return hmac.compare_digest(expected, actual), None
 
 
 def sha256_rgb_pixels(path: Path) -> str:
@@ -214,6 +335,11 @@ def rewrite_session_file(path: Path, entries: dict[str, str], remove_keys: set[s
         "canales",
         "rondas",
         "original_format",
+        "alpha_present",
+        "alpha_width",
+        "alpha_height",
+        "alpha_encoding",
+        "alpha_data",
         "z_hex",
         "salt_hex",
     ]
@@ -227,15 +353,27 @@ def rewrite_session_file(path: Path, entries: dict[str, str], remove_keys: set[s
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def rewrite_session_files_in_workdir(workdir: Path, original_format: str) -> None:
+def rewrite_session_files_in_workdir(workdir: Path, original_format: str, extra_entries: dict[str, str] | None = None) -> None:
     if not workdir.exists():
         return
     for session_path in workdir.glob("*.session.txt"):
+        merged_entries = {"original_format": original_format}
+        if extra_entries:
+            merged_entries.update(extra_entries)
         rewrite_session_file(
             session_path,
-            {"original_format": original_format},
+            merged_entries,
             remove_keys={"x_prev_path", "x_cur_path"},
         )
+        session_data = parse_session_file(session_path)
+        cipher_path = Path(str(session_path)[:-12])
+        prev_path = Path(str(cipher_path) + ".prev.bin")
+        if cipher_path.exists() and prev_path.exists():
+            mac_entries = {
+                "mac_alg": "hmac-sha256",
+                "mac_data": compute_session_mac(session_data, cipher_path, prev_path),
+            }
+            rewrite_session_file(session_path, mac_entries)
 
 
 def collect_bundle_artifacts(result: dict) -> list[Path]:
@@ -901,8 +1039,10 @@ def api_run():
         return jsonify({"error": "Formato no soportado. Usa PNG, BMP o TIFF."}), 400
     original_format = Path(f.filename).suffix.lower().lstrip(".")
 
-    img = Image.open(f.stream).convert("RGB")
-    width, height = img.size
+    with Image.open(f.stream) as uploaded_img:
+        alpha_entries = extract_alpha_session_entries(uploaded_img)
+        img = uploaded_img.convert("RGB")
+        width, height = img.size
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -928,7 +1068,21 @@ def api_run():
     for result in (java_r, c_r, cs_r):
         if not result.get("error") and result.get("workdir"):
             workdir = Path(result["workdir"])
-            rewrite_session_files_in_workdir(workdir, original_format)
+            if alpha_entries:
+                recovered_name = {
+                    "Java": "recovered_java.png",
+                    "C": "recovered_c.png",
+                    "C#": "recovered_cs.png",
+                }.get(result["lang"])
+                if recovered_name:
+                    recovered_path = workdir / recovered_name
+                    if recovered_path.exists():
+                        apply_alpha_from_session(recovered_path, alpha_entries)
+                        recovered_meta = describe_png(recovered_path)
+                        result["recovered_img"] = img_to_b64(recovered_path)
+                        result["sha256_output"] = recovered_meta["sha256_png"]
+                        result["sha256_rgb"] = recovered_meta["sha256_rgb"]
+            rewrite_session_files_in_workdir(workdir, original_format, alpha_entries)
             artifacts = collect_bundle_artifacts(result)
             if artifacts:
                 bundle_items.append((result["lang"], artifacts))
@@ -967,8 +1121,10 @@ def api_encrypt_only():
         return jsonify({"error": "Formato no soportado. Usa PNG, BMP o TIFF."}), 400
     original_format = Path(f.filename).suffix.lower().lstrip(".")
 
-    img = Image.open(f.stream).convert("RGB")
-    width, height = img.size
+    with Image.open(f.stream) as uploaded_img:
+        alpha_entries = extract_alpha_session_entries(uploaded_img)
+        img = uploaded_img.convert("RGB")
+        width, height = img.size
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -994,7 +1150,7 @@ def api_encrypt_only():
     for result in (java_r, c_r, cs_r):
         if not result.get("error") and result.get("workdir"):
             workdir = Path(result["workdir"])
-            rewrite_session_files_in_workdir(workdir, original_format)
+            rewrite_session_files_in_workdir(workdir, original_format, alpha_entries)
             artifacts = collect_bundle_artifacts(result)
             if artifacts:
                 bundle_items.append((result["lang"], artifacts))
@@ -1091,6 +1247,21 @@ def api_decrypt_only():
             artifacts["cipher"],
             artifacts["prev"],
         )
+        mac_ok, mac_error = verify_session_mac(session_data, artifacts["cipher"], artifacts["prev"])
+        if mac_error:
+            return {
+                "lang": language,
+                "elapsed_s": 0.0,
+                "status": "ERROR",
+                "error": mac_error,
+            }
+        if not mac_ok:
+            return {
+                "lang": language,
+                "elapsed_s": 0.0,
+                "status": "ERROR",
+                "error": "Fallo de integridad: los artefactos no coinciden con la sesión criptográfica.",
+            }
         output_label = original_format.upper()
         out_recovered = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}.png"
         out_exported = tmpdir / f"recovered_{language.replace('#', 'sharp').lower()}{output_suffix}"
@@ -1122,6 +1293,17 @@ def api_decrypt_only():
                 "status": "ERROR",
                 "error": err,
             }
+
+        if session_has_alpha(session_data):
+            try:
+                apply_alpha_from_session(out_recovered, session_data)
+            except Exception as exc:
+                return {
+                    "lang": language,
+                    "elapsed_s": elapsed,
+                    "status": "ERROR",
+                    "error": f"No se pudo reconstruir el canal alpha: {exc}",
+                }
 
         convert_image_file(out_recovered, original_format, out_exported)
         meta = describe_png(out_exported)
